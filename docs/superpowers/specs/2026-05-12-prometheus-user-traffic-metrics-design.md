@@ -50,7 +50,7 @@ pkg/prom_metrics/
 |-----------------------------------------|----------|-----------------------------------------------------------------------------------------------------|------------|
 | `newapi_relay_requests_total`           | Counter  | `user_id`, `username`, `group`, `model`, `channel_id`, `api_type`, `is_stream`, `status`, `status_code`, `error_type` | 中间件：每个 relay 请求结束计 +1（含失败请求）。QPS / 成功率 / 错误谱 |
 | `newapi_relay_request_duration_seconds` | Histogram | `user_id`, `model`, `group`, `api_type`, `is_stream`, `status`                                       | 中间件：请求总耗时。延迟分位 |
-| `newapi_relay_first_token_seconds`      | Histogram | `user_id`, `model`, `group`, `api_type`                                                              | 中间件：仅 stream 请求 TTFT。流式体验分析 |
+| `newapi_relay_first_token_seconds`      | Histogram | `user_id`, `model`, `group`, `api_type`                                                              | 结算钩子：仅 stream 请求 TTFT。流式体验分析 |
 | `newapi_relay_tokens_total`             | Counter  | `user_id`, `username`, `group`, `model`, `token_type`(prompt/completion/cache_read/cache_creation) | 结算钩子：token 累计。用量趋势 |
 | `newapi_relay_quota_consumed_total`     | Counter  | `user_id`, `username`, `group`, `model`                                                              | 结算钩子：扣费 quota 累计。计费趋势 |
 | `newapi_relay_active_requests`          | Gauge    | `api_type`, `model`                                                                                  | 中间件：进入 +1 / 退出 -1（不带 user，控制基数与原子开销） |
@@ -95,9 +95,6 @@ PrometheusRelayMiddleware:
   active_requests.Dec(apiType, "")                           // 与 Inc 严格对称
   requests_total.Inc(全标签)
   request_duration_seconds.Observe(elapsed)
-  if isStream && hasFirstResponseTime(c) {
-      first_token_seconds.Observe(ttft)
-  }
   username 异步通过 model.GetUsernameById 写入 metrics（见 4.3）
 ```
 
@@ -133,6 +130,7 @@ gopool.Go(func() {
 
 - 该路径仅在结算成功时执行，token / quota 计数自然不包含失败请求。
 - 字段口径与 `model.RecordConsumeLog` 对齐，与控制台日志一致。
+- TTFT 观察一并在 `RecordRelaySettled` 内执行：当 `relayInfo.IsStream && relayInfo.HasSendResponse()` 为真时，向 `first_token_seconds` 直方图写入 `FirstResponseTime - StartTime`。把 TTFT 放在结算钩子（而非中间件）的原因是 `RelayInfo` 不存于 `gin.Context`，避免在 RelayInfo / Stream 路径上新增 ctx 写入侵入。
 
 ### 4.3 Username 异步解析
 
@@ -248,8 +246,8 @@ router.Use(prom_metrics.GinMiddleware())   // ← 新增
 
 | 测试文件 | 覆盖点 |
 |---|---|
-| `metrics_test.go` | 注册阶段不 panic；`RecordRelaySettled` 在 token/quota=0、`nil RelayInfo` 时安全 no-op；正常输入下 Counter 数值与传入参数一致（`testutil.ToFloat64`） |
-| `middleware_test.go` | 构造 `gin.TestContext`：跑通成功路径（status=200/success/none）；4xx/5xx 派生为 `upstream_4xx/5xx`；`429`→`rate_limit`；stream 请求记录 TTFT；`c.Next()` panic 时 Gauge 仍能 Dec、不外泄 panic |
+| `metrics_test.go` | 注册阶段不 panic；`RecordRelaySettled` 在 token/quota=0、`nil RelayInfo` 时安全 no-op；正常输入下 Counter 数值与传入参数一致（`testutil.ToFloat64`）；`relayInfo.IsStream && HasSendResponse()` 为真时 TTFT 写入 `first_token_seconds`，否则不写 |
+| `middleware_test.go` | 构造 `gin.TestContext`：跑通成功路径（status=200/success/none）；4xx/5xx 派生为 `upstream_4xx/5xx`；`429`→`rate_limit`；`c.Next()` panic 时 Gauge 仍能 Dec、不外泄 panic |
 | `labels_test.go` | 空字符串→`unknown`；超长 username 截断；`error_type` 越界归 `internal`；`api_type` 越界归 `other`；`USER_LABEL=false` 下 `user_id`/`username` 输出空 |
 | `username_cache_test.go` | LRU 命中、过期、容量淘汰；`GetUsernameById` 返回错误时兜底 `unknown` |
 | `server_test.go` | `Init()` 在 `ENABLED=false` 时确实不监听端口；`ENABLED=true` 时 `/metrics` 返回 `text/plain`（OpenMetrics）并包含已注册指标名 |

@@ -18,20 +18,22 @@ import (
 )
 
 var (
-	globalMu sync.Mutex
-	global   *metrics
-	server   *http.Server
+	globalMu    sync.Mutex
+	initialized bool // Init 被调用过即为 true,无论 enabled/disabled
+	global      *metrics
+	server      *http.Server
 )
 
 // Init 由 main.go 在 InitResources() 末尾调用。
 // 解析配置;若未启用则零开销;若启用则注册自定义 registry + 启动独立 HTTP server。
-// 重入安全:多次调用只生效一次。
+// 重入安全:多次调用只生效一次(包括 disabled 路径)。
 func Init() {
 	globalMu.Lock()
 	defer globalMu.Unlock()
-	if global != nil {
+	if initialized {
 		return
 	}
+	initialized = true
 
 	cfg := LoadConfig()
 	if !cfg.Enabled {
@@ -40,8 +42,14 @@ func Init() {
 	}
 
 	reg := prometheus.NewRegistry()
-	reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-	reg.MustRegister(collectors.NewGoCollector())
+	if err := reg.Register(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{})); err != nil {
+		common.SysError("prometheus process collector registration failed: " + err.Error())
+		return
+	}
+	if err := reg.Register(collectors.NewGoCollector()); err != nil {
+		common.SysError("prometheus go collector registration failed: " + err.Error())
+		return
+	}
 
 	m, err := newMetrics(reg, cfg)
 	if err != nil {
@@ -102,6 +110,7 @@ func resetGlobalForTest() {
 	if server != nil {
 		_ = server.Close()
 	}
+	initialized = false
 	global = nil
 	server = nil
 }

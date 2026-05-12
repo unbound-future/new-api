@@ -20,17 +20,15 @@ import (
 func (m *metrics) GinMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
-		// 中间件挂在 router 顶层,RelayFormat 还未确定;此处用 path 启发式,
-		// 待 c.Next() 之后若 context 提供了精确类型则覆盖。
-		apiType := coerceAPIType(deriveAPITypeFromPath(path))
+		// 入口 apiType 仅用于 Gauge Inc/Dec 对称,固化到独立变量,
+		// 与出口阶段可能不同的 apiTypeFinal 互不干扰。
+		entryAPIType := coerceAPIType(deriveAPITypeFromPath(path))
 
-		// 仅 api_type × model 维度,model 在 c.Next() 之前可能为空,先用 unknown 占位。
-		// 关键不变量:Gauge 入口/出口必须使用同一组标签,所以 model 在 entry/exit 都用 "" 占位,
-		// model 信息只作用于 requests_total/duration 等出口标签。
-		m.activeRequests.WithLabelValues(apiType, "").Inc()
+		// Gauge 仅按 api_type × model 维度;入口/出口都用空串占位 model。
+		m.activeRequests.WithLabelValues(entryAPIType, "").Inc()
 		start := time.Now()
 		defer func() {
-			m.activeRequests.WithLabelValues(apiType, "").Dec()
+			m.activeRequests.WithLabelValues(entryAPIType, "").Dec()
 		}()
 
 		c.Next()
@@ -38,29 +36,21 @@ func (m *metrics) GinMiddleware() gin.HandlerFunc {
 		// 出口阶段:从 context 读出最终标签值
 		uid := common.GetContextKeyInt(c, constant.ContextKeyUserId)
 		uidLabel, unameLabel := m.userLabels(uid)
-		if uname := common.GetContextKeyString(c, constant.ContextKeyUserName); uname != "" && m.cfg.UserLabel {
-			// 中间件路径下 username 可直接从 context 拿,优先于 LRU
-			unameLabel = sanitizeLabel(uname)
+		if m.cfg.UserLabel {
+			if uname := common.GetContextKeyString(c, constant.ContextKeyUserName); uname != "" {
+				unameLabel = sanitizeLabel(uname)
+			}
 		}
 		group := sanitizeLabel(common.GetContextKeyString(c, constant.ContextKeyUsingGroup))
 		if group == LabelUnknown {
 			group = sanitizeLabel(common.GetContextKeyString(c, constant.ContextKeyUserGroup))
 		}
 		modelName := sanitizeLabel(common.GetContextKeyString(c, constant.ContextKeyOriginalModel))
-		channelID := common.GetContextKeyInt(c, constant.ContextKeyChannelId)
-		channelLabel := strconv.Itoa(channelID)
-		if channelID <= 0 {
-			channelLabel = "0"
-		}
-		isStream := common.GetContextKeyBool(c, constant.ContextKeyIsStream)
-		isStreamLabel := "false"
-		if isStream {
-			isStreamLabel = "true"
-		}
+		channelLabel := strconv.Itoa(common.GetContextKeyInt(c, constant.ContextKeyChannelId))
+		isStreamLabel := strconv.FormatBool(common.GetContextKeyBool(c, constant.ContextKeyIsStream))
 
-		// RelayFormat 在中间件层无法直接拿到;但部分 handler 会写 ContextKey,可选优化未来添加。
-		// 这里继续用 path 启发式;handler 内部最终再校准。
-		apiType = coerceAPIType(NormalizeAPIType(types.RelayFormat(""), path))
+		// 出口 apiType 从 path 重新派生(RelayFormat 暂未通过 context 传播到中间件层)。
+		apiTypeFinal := coerceAPIType(NormalizeAPIType(types.RelayFormat(""), path))
 
 		statusCode := c.Writer.Status()
 		statusLabel, errorTypeLabel := ClassifyOutcome(statusCode)
@@ -68,12 +58,12 @@ func (m *metrics) GinMiddleware() gin.HandlerFunc {
 
 		m.requestsTotal.WithLabelValues(
 			uidLabel, unameLabel, group, modelName, channelLabel,
-			apiType, isStreamLabel,
+			apiTypeFinal, isStreamLabel,
 			statusLabel, strconv.Itoa(statusCode), errorTypeLabel,
 		).Inc()
 
 		m.requestDurationSeconds.WithLabelValues(
-			uidLabel, modelName, group, apiType, isStreamLabel, statusLabel,
+			uidLabel, modelName, group, apiTypeFinal, isStreamLabel, statusLabel,
 		).Observe(time.Since(start).Seconds())
 	}
 }

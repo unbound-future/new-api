@@ -91,6 +91,8 @@ func NormalizeAPIType(format types.RelayFormat, path string) string {
 		return "gemini"
 	case types.RelayFormatOpenAIRealtime:
 		return "realtime"
+	case types.RelayFormatMjProxy:
+		return "mj"
 	case types.RelayFormatOpenAIResponses, types.RelayFormatOpenAIResponsesCompaction:
 		return "chat"
 	}

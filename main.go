@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
+	prom_metrics "github.com/QuantumNous/new-api/pkg/prom_metrics"
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/router"
 	"github.com/QuantumNous/new-api/service"
@@ -308,6 +309,7 @@ func InitResources() error {
 	}
 
 	perfmetrics.Init()
+	prom_metrics.Init()
 
 	// 启动系统监控
 	common.StartSystemMonitor()

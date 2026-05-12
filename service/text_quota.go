@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
+	prom_metrics "github.com/QuantumNous/new-api/pkg/prom_metrics"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -475,5 +476,14 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	})
 	gopool.Go(func() {
 		perfmetrics.RecordRelaySample(relayInfo, true, int64(summary.CompletionTokens))
+	})
+	gopool.Go(func() {
+		prom_metrics.RecordRelaySettled(relayInfo, prom_metrics.SettledSample{
+			PromptTokens:        summary.PromptTokens,
+			CompletionTokens:    summary.CompletionTokens,
+			CacheReadTokens:     summary.CacheTokens,
+			CacheCreationTokens: summary.CacheCreationTokens,
+			Quota:               summary.Quota,
+		})
 	})
 }

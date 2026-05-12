@@ -82,3 +82,31 @@ func TestResolveUsername_FetchAndCache(t *testing.T) {
 		t.Fatalf("expected 1 fetcher call after warm cache, got %d", calls)
 	}
 }
+
+func TestLRU_SetUpdate(t *testing.T) {
+	c := newUsernameCache(2, time.Minute)
+	c.Set(1, "old")
+	c.Set(1, "new")
+	if v, _ := c.Get(1); v != "new" {
+		t.Fatalf("expected updated value 'new', got %q", v)
+	}
+	c.Set(2, "b") // 不应触发淘汰,因为 1 是 update
+	if _, ok := c.Get(1); !ok {
+		t.Fatalf("expected 1 to survive after update + Set(2)")
+	}
+}
+
+func TestResolveUsername_EmptyNameNotCached(t *testing.T) {
+	c := newUsernameCache(8, time.Minute)
+	calls := 0
+	fetch := func(int) (string, error) { calls++; return "", nil }
+	if got := c.ResolveWith(7, fetch); got != LabelUnknown {
+		t.Fatalf("expected %q, got %q", LabelUnknown, got)
+	}
+	if got := c.ResolveWith(7, fetch); got != LabelUnknown {
+		t.Fatalf("expected %q, got %q", LabelUnknown, got)
+	}
+	if calls != 2 {
+		t.Fatalf("empty-name miss should not cache; expected 2 calls, got %d", calls)
+	}
+}

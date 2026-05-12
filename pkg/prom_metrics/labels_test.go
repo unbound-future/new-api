@@ -48,6 +48,8 @@ func TestNormalizeAPIType(t *testing.T) {
 		{types.RelayFormatClaude, "/v1/messages", "claude"},
 		{types.RelayFormatGemini, "/v1beta/models/x:generateContent", "gemini"},
 		{types.RelayFormatOpenAIRealtime, "/v1/realtime", "realtime"},
+		{types.RelayFormatMjProxy, "/mj-proxy/submit/imagine", "mj"},
+		{types.RelayFormatTask, "/suno/submit/music", "suno"},
 		{"weird", "/something", "other"},
 	}
 	for _, c := range cases {
@@ -59,23 +61,25 @@ func TestNormalizeAPIType(t *testing.T) {
 }
 
 func TestDeriveAPITypeFromPath(t *testing.T) {
-	cases := map[string]string{
-		"/mj/submit/imagine":         "mj",
-		"/mj-fast/mj/submit/imagine": "mj",
-		"/suno/submit/music":         "suno",
-		"/v1/rerank":                 "rerank",
-		"/v1/audio/speech":           "audio",
-		"/v1/images/edits":           "image",
-		"/v1/embeddings":             "embedding",
-		"/v1/chat/completions":       "chat",
-		"/v1/realtime":               "realtime",
-		"/v1/messages":               "claude",
-		"/foo":                       "other",
+	cases := []struct {
+		path, want string
+	}{
+		{"/mj/submit/imagine", "mj"},
+		{"/mj-fast/mj/submit/imagine", "mj"},
+		{"/suno/submit/music", "suno"},
+		{"/v1/rerank", "rerank"},
+		{"/v1/audio/speech", "audio"},
+		{"/v1/images/edits", "image"},
+		{"/v1/embeddings", "embedding"},
+		{"/v1/chat/completions", "chat"},
+		{"/v1/realtime", "realtime"},
+		{"/v1/messages", "claude"},
+		{"/foo", "other"},
 	}
-	for path, want := range cases {
-		got := deriveAPITypeFromPath(path)
-		if got != want {
-			t.Errorf("deriveAPITypeFromPath(%q)=%q want %q", path, got, want)
+	for _, c := range cases {
+		got := deriveAPITypeFromPath(c.path)
+		if got != c.want {
+			t.Errorf("deriveAPITypeFromPath(%q)=%q want %q", c.path, got, c.want)
 		}
 	}
 }

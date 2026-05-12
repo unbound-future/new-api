@@ -6,11 +6,11 @@ import (
 
 // Config 由 LoadConfig 从环境变量解析得到,Init 时使用一次。
 type Config struct {
-	Enabled       bool
-	Host          string
-	Port          int
-	Path          string
-	UserLabel     bool // false 时 user_id/username 标签固定为空,降级到聚合视角
+	Enabled   bool
+	Host      string
+	Port      int
+	Path      string
+	UserLabel bool // false 时 user_id/username 标签固定为空,降级到聚合视角
 }
 
 const (

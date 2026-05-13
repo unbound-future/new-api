@@ -23,6 +23,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	coslog "github.com/QuantumNous/new-api/pkg/coslog"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
@@ -340,6 +341,7 @@ func InitResources() error {
 	}
 
 	perfmetrics.Init()
+	coslog.Init()
 
 	// 启动系统监控
 	common.StartSystemMonitor()

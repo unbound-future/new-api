@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	coslog "github.com/QuantumNous/new-api/pkg/coslog"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	prom_metrics "github.com/QuantumNous/new-api/pkg/prom_metrics"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -485,5 +486,6 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 			CacheCreationTokens: summary.CacheCreationTokens,
 			Quota:               summary.Quota,
 		})
+		coslog.Record(ctx, relayInfo)
 	})
 }

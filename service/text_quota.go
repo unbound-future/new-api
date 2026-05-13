@@ -478,6 +478,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	gopool.Go(func() {
 		perfmetrics.RecordRelaySample(relayInfo, true, int64(summary.CompletionTokens))
 	})
+	coslog.PrepareContext(ctx)
 	gopool.Go(func() {
 		prom_metrics.RecordRelaySettled(relayInfo, prom_metrics.SettledSample{
 			PromptTokens:        summary.PromptTokens,

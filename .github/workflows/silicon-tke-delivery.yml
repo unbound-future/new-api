@@ -1,0 +1,195 @@
+name: Silicon-TKE Delivery Pipeline
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      force_mode:
+        description: "强制部署模式 (CANARY / STABLE_FROM_DEV / ALL_ENVS / STABLE)"
+        required: false
+        default: "CANARY"
+
+env:
+  REGISTRY: harbor-silicon.unbound-future.cn
+  IMAGE: furion/new-api
+  ARGOCD_REPO: unbound-future/argocd
+  ARGOCD_BRANCH: main
+  CANARY_DIRS: silicon-tke/applications/new-api-cannary
+  STABLE_DIRS: silicon-tke/applications/new-api
+  MAGIC_STRING_STABLE: "[deploy-stable]"
+  MAGIC_STRING_ALL: "[deploy-all]"
+
+jobs:
+  build-and-deploy:
+    name: Build & deploy to silicon-tke
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Determine target environment
+        id: target
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          FORCE_MODE: ${{ github.event.inputs.force_mode }}
+        run: |
+          TARGET_DIRS=""
+          DOCKER_TAG=""
+          MODE=""
+
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "🚀 Trigger: Tag Release"
+            MODE="STABLE"
+            TARGET_DIRS="${{ env.STABLE_DIRS }}
+            ${{ env.CANARY_DIRS }}"
+            DOCKER_TAG="${{ github.ref_name }}"
+
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "🛠️ Trigger: Manual Dispatch (mode=$FORCE_MODE)"
+            MODE="$FORCE_MODE"
+            case "$FORCE_MODE" in
+              STABLE|ALL_ENVS)
+                TARGET_DIRS="${{ env.STABLE_DIRS }}
+                ${{ env.CANARY_DIRS }}"
+                ;;
+              STABLE_FROM_DEV)
+                TARGET_DIRS="${{ env.STABLE_DIRS }}"
+                ;;
+              CANARY|"")
+                MODE="CANARY"
+                TARGET_DIRS="${{ env.CANARY_DIRS }}"
+                ;;
+              *)
+                echo "❌ Unknown force_mode: $FORCE_MODE"
+                exit 1
+                ;;
+            esac
+            DOCKER_TAG="sha-${{ github.sha }}"
+
+          else
+            if [[ "$COMMIT_MSG" == *"${{ env.MAGIC_STRING_ALL }}"* ]]; then
+              echo "🌍 Trigger: Deploy ALL Environments (Magic String detected)"
+              MODE="ALL_ENVS"
+              TARGET_DIRS="${{ env.STABLE_DIRS }}
+              ${{ env.CANARY_DIRS }}"
+            elif [[ "$COMMIT_MSG" == *"${{ env.MAGIC_STRING_STABLE }}"* ]]; then
+              echo "🔥 Trigger: Force Stable Update from main (Magic String detected)"
+              MODE="STABLE_FROM_DEV"
+              TARGET_DIRS="${{ env.STABLE_DIRS }}"
+            else
+              echo "🐤 Trigger: Default Canary Update"
+              MODE="CANARY"
+              TARGET_DIRS="${{ env.CANARY_DIRS }}"
+            fi
+            DOCKER_TAG="sha-${{ github.sha }}"
+          fi
+
+          {
+            echo "TARGET_DIRS<<EOF"
+            echo "$TARGET_DIRS"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+          echo "DOCKER_TAG=$DOCKER_TAG" >> "$GITHUB_ENV"
+          echo "DEPLOY_MODE=$MODE" >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Harbor
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build & push image (linux/amd64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ env.DOCKER_TAG }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE }}:latest
+          cache-from: type=gha,scope=new-api
+          cache-to: type=gha,mode=max,scope=new-api
+          provenance: false
+          sbom: false
+
+      - name: Get GitHub App token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.GITHUBAPP_ID }}
+          private-key: ${{ secrets.GITHUBAPP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Checkout ArgoCD repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.ARGOCD_REPO }}
+          token: ${{ steps.app-token.outputs.token }}
+          ref: ${{ env.ARGOCD_BRANCH }}
+          path: argocd-repo
+
+      - name: Update ArgoCD manifests
+        env:
+          NEW_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ env.DOCKER_TAG }}
+        run: |
+          cd argocd-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          echo "${{ env.TARGET_DIRS }}" | while IFS= read -r DIR_PATH; do
+            DIR_PATH=$(echo "$DIR_PATH" | xargs)
+            if [ -z "$DIR_PATH" ]; then continue; fi
+
+            if [ ! -d "$DIR_PATH" ]; then
+              echo "❌ Error: Directory not found: $DIR_PATH"
+              exit 1
+            fi
+
+            echo "📂 Processing directory: $DIR_PATH"
+            # Anchored on yaml list item ("- image:") so commented-out lines ("#  - image:") are skipped.
+            MATCHING_FILES=$(grep -rlE "^[[:space:]]*-[[:space:]]+image: ${{ env.REGISTRY }}/${{ env.IMAGE }}:" "$DIR_PATH" || true)
+
+            if [ -z "$MATCHING_FILES" ]; then
+              echo "⚠️ No active image line for ${{ env.IMAGE }} in $DIR_PATH (all candidates may be commented out)"
+              continue
+            fi
+
+            echo "$MATCHING_FILES" | while read -r FILE_PATH; do
+              echo "📝 Updating $FILE_PATH -> $NEW_IMAGE"
+              sed -i -E "s|^([[:space:]]*-[[:space:]]+)image: ${{ env.REGISTRY }}/${{ env.IMAGE }}:.*|\1image: $NEW_IMAGE|g" "$FILE_PATH"
+              git add "$FILE_PATH"
+            done
+          done
+
+          if git diff --staged --quiet; then
+            echo "No manifest changes to commit"
+          else
+            git commit -m "[${{ env.DEPLOY_MODE }}] Update new-api to ${{ env.DOCKER_TAG }}"
+            git pull --rebase origin ${{ env.ARGOCD_BRANCH }}
+            git push origin ${{ env.ARGOCD_BRANCH }}
+          fi
+
+      - name: Summary
+        run: |
+          {
+            echo "### Silicon-TKE Delivery"
+            echo ""
+            echo "- **Mode:** ${{ env.DEPLOY_MODE }}"
+            echo "- **Image:** \`${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ env.DOCKER_TAG }}\`"
+            echo "- **Targets:**"
+            echo "${{ env.TARGET_DIRS }}" | sed 's/^/  - /'
+          } >> "$GITHUB_STEP_SUMMARY"

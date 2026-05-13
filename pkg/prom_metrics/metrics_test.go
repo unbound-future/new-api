@@ -69,6 +69,7 @@ func TestRecordRelaySettled_TokenCounters(t *testing.T) {
 		UserId:          7,
 		UsingGroup:      "default",
 		OriginModelName: "gpt-4o",
+		ChannelMeta:     &relaycommon.ChannelMeta{ChannelId: 42},
 		RelayFormat:     types.RelayFormatOpenAI,
 		IsStream:        false,
 		StartTime:       time.Now(),
@@ -82,7 +83,7 @@ func TestRecordRelaySettled_TokenCounters(t *testing.T) {
 	})
 
 	check := func(tokenType string, want float64) {
-		got := testutil.ToFloat64(m.tokensTotal.WithLabelValues("7", "alice", "default", "gpt-4o", tokenType))
+		got := testutil.ToFloat64(m.tokensTotal.WithLabelValues("7", "alice", "default", "gpt-4o", "42", tokenType))
 		if got != want {
 			t.Errorf("tokens[%s] = %v, want %v", tokenType, got, want)
 		}
@@ -92,7 +93,7 @@ func TestRecordRelaySettled_TokenCounters(t *testing.T) {
 	check("cache_read", 5)
 	check("cache_creation", 3)
 
-	if v := testutil.ToFloat64(m.quotaConsumedTotal.WithLabelValues("7", "alice", "default", "gpt-4o")); v != 1000 {
+	if v := testutil.ToFloat64(m.quotaConsumedTotal.WithLabelValues("7", "alice", "default", "gpt-4o", "42")); v != 1000 {
 		t.Errorf("quota = %v, want 1000", v)
 	}
 }
@@ -139,13 +140,14 @@ func TestRecordRelaySettled_UserLabelDisabled(t *testing.T) {
 		UserId:          7,
 		UsingGroup:      "default",
 		OriginModelName: "gpt-4o",
+		ChannelMeta:     &relaycommon.ChannelMeta{ChannelId: 42},
 		IsStream:        false,
 		StartTime:       time.Now(),
 	}
 	m.RecordRelaySettled(info, SettledSample{PromptTokens: 5})
 
 	// USER_LABEL=false 时,user_id/username 标签应为空
-	got := testutil.ToFloat64(m.tokensTotal.WithLabelValues("", "", "default", "gpt-4o", "prompt"))
+	got := testutil.ToFloat64(m.tokensTotal.WithLabelValues("", "", "default", "gpt-4o", "42", "prompt"))
 	if got != 5 {
 		t.Errorf("expected 5 prompt tokens under empty user labels, got %v", got)
 	}

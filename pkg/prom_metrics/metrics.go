@@ -56,7 +56,7 @@ func newMetrics(reg prometheus.Registerer, cfg Config) (*metrics, error) {
 		Name:      "request_duration_seconds",
 		Help:      "Relay request total duration in seconds.",
 		Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300},
-	}, []string{"user_id", "model", "group", "api_type", "is_stream", "status"})
+	}, []string{"user_id", "model", "group", "channel_id", "api_type", "is_stream", "status"})
 
 	m.firstTokenSeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -64,21 +64,21 @@ func newMetrics(reg prometheus.Registerer, cfg Config) (*metrics, error) {
 		Name:      "first_token_seconds",
 		Help:      "Time-to-first-token for streaming responses (seconds).",
 		Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20},
-	}, []string{"user_id", "model", "group", "api_type"})
+	}, []string{"user_id", "model", "group", "channel_id", "api_type"})
 
 	m.tokensTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: "relay",
 		Name:      "tokens_total",
 		Help:      "Tokens consumed by token_type (prompt/completion/cache_read/cache_creation).",
-	}, []string{"user_id", "username", "group", "model", "token_type"})
+	}, []string{"user_id", "username", "group", "model", "channel_id", "token_type"})
 
 	m.quotaConsumedTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: "relay",
 		Name:      "quota_consumed_total",
 		Help:      "Quota consumed by relay requests (gateway internal units).",
-	}, []string{"user_id", "username", "group", "model"})
+	}, []string{"user_id", "username", "group", "model", "channel_id"})
 
 	m.activeRequests = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
@@ -147,21 +147,26 @@ func (m *metrics) RecordRelaySettled(info *relaycommon.RelayInfo, s SettledSampl
 		group = sanitizeLabel(info.UserGroup)
 	}
 	modelName := sanitizeLabel(info.OriginModelName)
+	// ChannelMeta 经由 *ChannelMeta 嵌入,在 InitChannelMeta 之前(或部分调用路径)可能为 nil。
+	channelLabel := "0"
+	if info.ChannelMeta != nil {
+		channelLabel = strconv.Itoa(info.ChannelId)
+	}
 
 	if s.PromptTokens > 0 {
-		m.tokensTotal.WithLabelValues(uid, uname, group, modelName, "prompt").Add(float64(s.PromptTokens))
+		m.tokensTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, "prompt").Add(float64(s.PromptTokens))
 	}
 	if s.CompletionTokens > 0 {
-		m.tokensTotal.WithLabelValues(uid, uname, group, modelName, "completion").Add(float64(s.CompletionTokens))
+		m.tokensTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, "completion").Add(float64(s.CompletionTokens))
 	}
 	if s.CacheReadTokens > 0 {
-		m.tokensTotal.WithLabelValues(uid, uname, group, modelName, "cache_read").Add(float64(s.CacheReadTokens))
+		m.tokensTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, "cache_read").Add(float64(s.CacheReadTokens))
 	}
 	if s.CacheCreationTokens > 0 {
-		m.tokensTotal.WithLabelValues(uid, uname, group, modelName, "cache_creation").Add(float64(s.CacheCreationTokens))
+		m.tokensTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, "cache_creation").Add(float64(s.CacheCreationTokens))
 	}
 	if s.Quota > 0 {
-		m.quotaConsumedTotal.WithLabelValues(uid, uname, group, modelName).Add(float64(s.Quota))
+		m.quotaConsumedTotal.WithLabelValues(uid, uname, group, modelName, channelLabel).Add(float64(s.Quota))
 	}
 
 	// TTFT 仅在流式且确实有过响应时记录。RelayInfo 不存于 gin.Context,
@@ -170,7 +175,7 @@ func (m *metrics) RecordRelaySettled(info *relaycommon.RelayInfo, s SettledSampl
 		apiType := coerceAPIType(NormalizeAPIType(info.RelayFormat, ""))
 		ttft := info.FirstResponseTime.Sub(info.StartTime).Seconds()
 		if ttft > 0 {
-			m.firstTokenSeconds.WithLabelValues(uid, modelName, group, apiType).Observe(ttft)
+			m.firstTokenSeconds.WithLabelValues(uid, modelName, group, channelLabel, apiType).Observe(ttft)
 		}
 	}
 }

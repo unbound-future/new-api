@@ -63,7 +63,7 @@ func (m *metrics) GinMiddleware() gin.HandlerFunc {
 		).Inc()
 
 		m.requestDurationSeconds.WithLabelValues(
-			uidLabel, modelName, group, apiTypeFinal, isStreamLabel, statusLabel,
+			uidLabel, modelName, group, channelLabel, apiTypeFinal, isStreamLabel, statusLabel,
 		).Observe(time.Since(start).Seconds())
 	}
 }

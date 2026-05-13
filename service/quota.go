@@ -257,6 +257,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		Group:            relayInfo.UsingGroup,
 		Other:            other,
 	})
+	coslog.PrepareContext(ctx)
 	gopool.Go(func() {
 		prom_metrics.RecordRelaySettled(relayInfo, prom_metrics.SettledSample{
 			PromptTokens:     usage.InputTokens,
@@ -386,6 +387,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		Group:            relayInfo.UsingGroup,
 		Other:            other,
 	})
+	coslog.PrepareContext(ctx)
 	gopool.Go(func() {
 		perfmetrics.RecordRelaySample(relayInfo, true, int64(usage.CompletionTokens))
 	})

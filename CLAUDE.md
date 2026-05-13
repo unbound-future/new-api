@@ -32,11 +32,12 @@ constant/      — Constants (API types, channel types, context keys)
 types/         — Type definitions (relay formats, file sources, errors)
 i18n/          — Backend internationalization (go-i18n, en/zh)
 oauth/         — OAuth provider implementations
-pkg/           — Internal packages (cachex, ionet)
-web/             — Frontend themes container
- web/default/   — Default frontend (React 19, Rsbuild, Base UI, Tailwind)
-  web/classic/   — Classic frontend (React 18, Vite, Semi Design)
-  web/default/src/i18n/ — Frontend internationalization (i18next, zh/en/fr/ru/ja/vi)
+pkg/           — Internal packages (billingexpr, cachex, ionet, perf_metrics, prom_metrics)
+web/           — Frontend themes container
+ web/default/  — Default frontend (React 19, Rsbuild, Base UI, Tailwind)
+ web/classic/  — Classic frontend (React 18, Vite, Semi Design)
+ web/default/src/i18n/ — Frontend internationalization (i18next, zh/en/fr/ru/ja/vi)
+grafana/       — Grafana dashboard JSON definitions
 ```
 
 ## Internationalization (i18n)

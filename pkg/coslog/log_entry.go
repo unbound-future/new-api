@@ -23,6 +23,20 @@ type COSLOG struct {
 const ctxKeyResponseBody = "coslog_response_body"
 const ctxKeyResponseHeaders = "coslog_response_headers"
 
+const CtxKeyRequestBody = "coslog_request_body"
+const CtxKeyRequestHeaders = "coslog_request_headers"
+
+func PrepareContext(ctx *gin.Context) {
+	if bs, err := common.GetRequestBody(ctx); err == nil {
+		if b, err := io.ReadAll(bs.(io.Reader)); err == nil {
+			ctx.Set(CtxKeyRequestBody, string(b))
+		}
+	}
+	if h, err := common.Marshal(headersToMap(ctx.Request.Header)); err == nil {
+		ctx.Set(CtxKeyRequestHeaders, string(h))
+	}
+}
+
 func Record(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) {
 	if defaultWriter == nil || ctx == nil {
 		return
@@ -34,15 +48,23 @@ func Record(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) {
 	}()
 
 	var reqBody string
-	if bs, err := common.GetRequestBody(ctx); err == nil {
-		if b, err := io.ReadAll(bs.(io.Reader)); err == nil {
-			reqBody = string(b)
+	if v, exists := ctx.Get(CtxKeyRequestBody); exists {
+		reqBody, _ = v.(string)
+	} else {
+		if bs, err := common.GetRequestBody(ctx); err == nil {
+			if b, err := io.ReadAll(bs.(io.Reader)); err == nil {
+				reqBody = string(b)
+			}
 		}
 	}
 
 	var reqHeaders string
-	if h, err := common.Marshal(headersToMap(ctx.Request.Header)); err == nil {
-		reqHeaders = string(h)
+	if v, exists := ctx.Get(CtxKeyRequestHeaders); exists {
+		reqHeaders, _ = v.(string)
+	} else {
+		if h, err := common.Marshal(headersToMap(ctx.Request.Header)); err == nil {
+			reqHeaders = string(h)
+		}
 	}
 
 	var respBody, respHeaders string

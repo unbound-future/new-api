@@ -257,6 +257,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		Group:            relayInfo.UsingGroup,
 		Other:            other,
 	})
+	coslog.PrepareContext(ctx)
 	gopool.Go(func() {
 		coslog.Record(ctx, relayInfo)
 	})
@@ -383,6 +384,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		Group:            relayInfo.UsingGroup,
 		Other:            other,
 	})
+	coslog.PrepareContext(ctx)
 	gopool.Go(func() {
 		perfmetrics.RecordRelaySample(relayInfo, true, int64(usage.CompletionTokens))
 		coslog.Record(ctx, relayInfo)

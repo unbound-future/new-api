@@ -2,6 +2,7 @@ package prom_metrics
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -32,6 +33,11 @@ func (m *metrics) GinMiddleware() gin.HandlerFunc {
 		}()
 
 		c.Next()
+
+		// 跳过纯模型查询请求，避免产生 unknown 标签
+		if c.Request.Method == "GET" && isModelMetaRequest(path) {
+			return
+		}
 
 		// 出口阶段:从 context 读出最终标签值
 		uid := common.GetContextKeyInt(c, constant.ContextKeyUserId)
@@ -66,4 +72,12 @@ func (m *metrics) GinMiddleware() gin.HandlerFunc {
 			uidLabel, modelName, group, channelLabel, apiTypeFinal, isStreamLabel, statusLabel,
 		).Observe(time.Since(start).Seconds())
 	}
+}
+
+// isModelMetaRequest 判断是否为模型列表/查询请求（不产生实际调用，会导致 model 标签为 unknown）
+func isModelMetaRequest(path string) bool {
+	return path == "/v1/models" ||
+		strings.HasPrefix(path, "/v1/models/") ||
+		path == "/v1beta/models" ||
+		path == "/v1beta/openai/models"
 }

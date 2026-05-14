@@ -57,6 +57,7 @@ func Init() {
 		return
 	}
 	global = m
+	common.SysLog("prometheus metrics initialized successfully, global set")
 
 	mux := http.NewServeMux()
 	mux.Handle(cfg.Path, promhttp.HandlerFor(reg, promhttp.HandlerOpts{
@@ -87,8 +88,10 @@ func GinMiddleware() gin.HandlerFunc {
 	m := global
 	globalMu.Unlock()
 	if m == nil {
+		common.SysError("prom_metrics GinMiddleware: global is nil, returning no-op")
 		return func(c *gin.Context) { c.Next() }
 	}
+	common.SysLog("prom_metrics GinMiddleware: global is set, returning real middleware")
 	return m.GinMiddleware()
 }
 

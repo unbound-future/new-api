@@ -21,6 +21,7 @@ import (
 func (m *metrics) GinMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
+		common.SysLog("prom_metrics middleware entered: " + path)
 		// 入口 apiType 仅用于 Gauge Inc/Dec 对称,固化到独立变量,
 		// 与出口阶段可能不同的 apiTypeFinal 互不干扰。
 		entryAPIType := coerceAPIType(deriveAPITypeFromPath(path))
@@ -34,8 +35,12 @@ func (m *metrics) GinMiddleware() gin.HandlerFunc {
 
 		c.Next()
 
+		statusCode := c.Writer.Status()
+		common.SysLog("prom_metrics middleware after c.Next, status=" + strconv.Itoa(statusCode))
+
 		// 跳过纯模型查询请求，避免产生 unknown 标签
 		if c.Request.Method == "GET" && isModelMetaRequest(path) {
+			common.SysLog("prom_metrics middleware skipping model meta request")
 			return
 		}
 
@@ -58,10 +63,10 @@ func (m *metrics) GinMiddleware() gin.HandlerFunc {
 		// 出口 apiType 从 path 重新派生(RelayFormat 暂未通过 context 传播到中间件层)。
 		apiTypeFinal := coerceAPIType(NormalizeAPIType(types.RelayFormat(""), path))
 
-		statusCode := c.Writer.Status()
 		statusLabel, errorTypeLabel := ClassifyOutcome(statusCode)
 		errorTypeLabel = coerceErrorType(errorTypeLabel)
 
+		common.SysLog("prom_metrics middleware recording metrics: status=" + statusLabel + ", model=" + modelName + ", apiType=" + apiTypeFinal)
 		m.requestsTotal.WithLabelValues(
 			uidLabel, unameLabel, group, modelName, channelLabel,
 			apiTypeFinal, isStreamLabel,
@@ -71,6 +76,7 @@ func (m *metrics) GinMiddleware() gin.HandlerFunc {
 		m.requestDurationSeconds.WithLabelValues(
 			uidLabel, modelName, group, channelLabel, apiTypeFinal, isStreamLabel, statusLabel,
 		).Observe(time.Since(start).Seconds())
+		common.SysLog("prom_metrics middleware metrics recorded")
 	}
 }
 

@@ -249,6 +249,9 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
+	} else {
+		// 与消费日志主键 1:1 对应，在消费日志成功落库后写入。
+		recordRequestLog(c, log.Id, log.UserId, log.Username, log.ModelName, log.CreatedAt, log.RequestId)
 	}
 	if common.DataExportEnabled {
 		gopool.Go(func() {

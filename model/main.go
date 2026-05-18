@@ -270,6 +270,7 @@ func migrateDB() error {
 		&Redemption{},
 		&Ability{},
 		&Log{},
+		&RequestLog{},
 		&Midjourney{},
 		&TopUp{},
 		&QuotaData{},
@@ -400,7 +401,10 @@ func migrateLOGDB() error {
 	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
 		return migrateClickHouseLogDB()
 	}
-	return LOG_DB.AutoMigrate(&Log{})
+	if err := LOG_DB.AutoMigrate(&Log{}); err != nil {
+		return err
+	}
+	return LOG_DB.AutoMigrate(&RequestLog{})
 }
 
 func migrateClickHouseLogDB() error {

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 )
 
@@ -48,8 +49,15 @@ func ResponseCaptureMiddleware() gin.HandlerFunc {
 		c.Next()
 
 		hBytes, _ := common.Marshal(headersToMap(cw.headers))
-		c.Set(ctxKeyResponseBody, cw.body.String())
-		c.Set(ctxKeyResponseHeaders, string(hBytes))
+		bodyStr := cw.body.String()
+		headersStr := string(hBytes)
+		c.Set(ctxKeyResponseBody, bodyStr)
+		c.Set(ctxKeyResponseHeaders, headersStr)
+
+		// 把响应内容写回到本次请求生成的 request_logs 行（response_body/headers）。
+		// RecordConsumeLog 在 c.Next() 内部就已经创建了 request_logs 行，
+		// 但当时响应还未生成，因此响应内容只能在这里补齐。
+		model.FlushRequestLogResponses(c, headersStr, bodyStr)
 	}
 }
 

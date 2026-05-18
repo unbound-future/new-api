@@ -1481,7 +1481,7 @@
       "targets": [
         {
           "expr": "process_resident_memory_bytes",
-          "legendFormat": "RSS",
+          "legendFormat": "RSS - {{instance}}",
           "refId": "A"
         }
       ]

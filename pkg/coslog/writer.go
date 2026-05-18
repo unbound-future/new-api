@@ -4,15 +4,12 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/tencentyun/cos-go-sdk-v5"
 )
 
 type JSONLWriter struct {
@@ -24,7 +21,7 @@ type JSONLWriter struct {
 	ch          chan COSLOG
 	wg          sync.WaitGroup
 	closed      bool
-	cosClient   *cos.Client
+	uploader    Uploader
 }
 
 var defaultWriter *JSONLWriter
@@ -38,17 +35,23 @@ func NewJSONLWriter(cfg Config) (*JSONLWriter, error) {
 		buffer: make([]COSLOG, 0, cfg.FlushSize),
 		ch:     make(chan COSLOG, 10000),
 	}
-	if cfg.Bucket != "" && cfg.Region != "" && cfg.SecretID != "" && cfg.SecretKey != "" {
-		u, err := url.Parse(fmt.Sprintf("https://%s.cos.%s.myqcloud.com", cfg.Bucket, cfg.Region))
-		if err != nil {
-			return nil, fmt.Errorf("invalid cos url: %w", err)
+	if cfg.Bucket != "" {
+		switch cfg.StorageType {
+		case "gcs":
+			uploader, err := NewGCSUploader(cfg)
+			if err != nil {
+				return nil, fmt.Errorf("init gcs uploader: %w", err)
+			}
+			w.uploader = uploader
+		default:
+			if cfg.Region != "" && cfg.SecretID != "" && cfg.SecretKey != "" {
+				uploader, err := NewCOSUploader(cfg)
+				if err != nil {
+					return nil, fmt.Errorf("init cos uploader: %w", err)
+				}
+				w.uploader = uploader
+			}
 		}
-		w.cosClient = cos.NewClient(&cos.BaseURL{BucketURL: u}, &http.Client{
-			Transport: &cos.AuthorizationTransport{
-				SecretID:  cfg.SecretID,
-				SecretKey: cfg.SecretKey,
-			},
-		})
 	}
 	if err := w.newFile(); err != nil {
 		return nil, err
@@ -141,14 +144,14 @@ func (w *JSONLWriter) flushBuffer(reason string) {
 }
 
 func (w *JSONLWriter) uploadAndRemove(filePath string) {
-	if w.cosClient == nil {
+	if w.uploader == nil {
 		return
 	}
 	objectKey := filepath.Base(filePath)
 	if w.cfg.Prefix != "" {
 		objectKey = w.cfg.Prefix + "/" + objectKey
 	}
-	_, err := w.cosClient.Object.PutFromFile(context.Background(), objectKey, filePath, nil)
+	err := w.uploader.Upload(context.Background(), objectKey, filePath)
 	if err != nil {
 		common.SysError("coslog upload failed: " + err.Error())
 		return

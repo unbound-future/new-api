@@ -32,7 +32,8 @@ constant/      — Constants (API types, channel types, context keys)
 types/         — Type definitions (relay formats, file sources, errors)
 i18n/          — Backend internationalization (go-i18n, en/zh)
 oauth/         — OAuth provider implementations
-pkg/           — Internal packages (billingexpr, cachex, ionet, perf_metrics, prom_metrics)
+pkg/           — Internal packages (billingexpr, cachex, coslog, ionet, perf_metrics, prom_metrics)
+  pkg/coslog/  — Access log writer with cloud storage upload (COS, GCS)
 web/           — Frontend themes container
  web/default/  — Default frontend (React 19, Rsbuild, Base UI, Tailwind)
  web/classic/  — Classic frontend (React 18, Vite, Semi Design)

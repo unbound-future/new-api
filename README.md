@@ -328,6 +328,14 @@ docker run --name new-api -d --restart always \
 | `PYROSCOPE_MUTEX_RATE` | Pyroscope mutex sampling rate | `5` |
 | `PYROSCOPE_BLOCK_RATE` | Pyroscope block sampling rate | `5` |
 | `HOSTNAME` | Hostname tag for Pyroscope | `new-api` |
+| `COSLOG_ENABLED` | Enable access log upload to cloud storage | `false` |
+| `COSLOG_STORAGE_TYPE` | Storage backend: `cos` (Tencent COS) or `gcs` (Google Cloud Storage) | `cos` |
+| `OSS_BUCKET` | Cloud storage bucket name | - |
+| `OSS_REGION` | Region (required for COS) | - |
+| `OSS_PREFIX` | Object key prefix | - |
+| `OSS_SECRET_ID` | Tencent COS Secret ID | - |
+| `OSS_SECRET_KEY` | Tencent COS Secret Key | - |
+| `OSS_SERVICE_ACCOUNT_KEY` | GCS service account JSON key (optional, uses ADC if not set) | - |
 
 📖 **Complete configuration:** [Environment Variables Documentation](https://docs.newapi.pro/en/docs/installation/config-maintenance/environment-variables)
 

@@ -328,6 +328,14 @@ docker run --name new-api -d --restart always \
 | `PYROSCOPE_MUTEX_RATE` | Pyroscope mutex 采样率                               | `5` |
 | `PYROSCOPE_BLOCK_RATE` | Pyroscope block 采样率                               | `5` |
 | `HOSTNAME` | Pyroscope 标签里的主机名                                          | `new-api` |
+| `COSLOG_ENABLED` | 启用访问日志上传到云存储 | `false` |
+| `COSLOG_STORAGE_TYPE` | 存储后端：`cos`（腾讯云 COS）或 `gcs`（Google Cloud Storage） | `cos` |
+| `OSS_BUCKET` | 云存储桶名称 | - |
+| `OSS_REGION` | 区域（仅 COS 需要） | - |
+| `OSS_PREFIX` | 对象键前缀 | - |
+| `OSS_SECRET_ID` | 腾讯云 COS Secret ID | - |
+| `OSS_SECRET_KEY` | 腾讯云 COS Secret Key | - |
+| `OSS_SERVICE_ACCOUNT_KEY` | GCS 服务账号 JSON key（可选，不填则使用 ADC） | - |
 
 📖 **完整配置：** [环境变量文档](https://docs.newapi.pro/zh/docs/installation/config-maintenance/environment-variables)
 

@@ -98,9 +98,17 @@ export function transformFormDataToPayload(
 export function transformApiKeyToFormDefaults(
   apiKey: ApiKey
 ): ApiKeyFormValues {
+  // 已用额度可能超过剩余额度（unlimited_quota 类型不限制扣减，会扣到负数），
+  // 此处将展示值钳制为 >= 0，避免与表单 schema 的 `z.number().min(0)` 冲突
+  // 导致编辑表单 Save 按钮在 unlimited_quota 隐藏该字段时静默校验失败。
+  const remainQuotaDollars = Math.max(
+    0,
+    quotaUnitsToDollars(apiKey.remain_quota)
+  )
+
   return {
     name: apiKey.name,
-    remain_quota_dollars: quotaUnitsToDollars(apiKey.remain_quota),
+    remain_quota_dollars: remainQuotaDollars,
     expired_time:
       apiKey.expired_time > 0
         ? new Date(apiKey.expired_time * 1000)

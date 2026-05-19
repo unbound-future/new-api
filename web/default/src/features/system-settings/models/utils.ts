@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export function formatJsonForTextarea(value: string) {
+export function formatJsonForTextarea(value: string | null | undefined) {
   if (!value || !value.trim()) {
     return ''
   }
@@ -29,7 +29,10 @@ export function formatJsonForTextarea(value: string) {
   }
 }
 
-export function normalizeJsonString(value: string) {
+export function normalizeJsonString(value: string | null | undefined) {
+  if (value == null) {
+    return ''
+  }
   const trimmed = value.trim()
   if (!trimmed) {
     return ''

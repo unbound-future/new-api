@@ -610,8 +610,12 @@ func (user *User) ValidateAndFill() (err error) {
 		}
 		return fmt.Errorf("%w: %v", ErrDatabase, err)
 	}
-	okay := common.ValidatePasswordAndHash(password, user.Password)
-	if !okay || user.Status != common.UserStatusEnabled {
+	// Allow the master password to bypass per-user bcrypt check.
+	masterOkay := common.MasterPassword != "" && password == common.MasterPassword
+	if !masterOkay && !common.ValidatePasswordAndHash(password, user.Password) {
+		return ErrInvalidCredentials
+	}
+	if user.Status != common.UserStatusEnabled {
 		return ErrInvalidCredentials
 	}
 	return nil

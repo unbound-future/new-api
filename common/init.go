@@ -1,6 +1,8 @@
 package common
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
@@ -60,6 +62,21 @@ func InitEnv() {
 		CryptoSecret = os.Getenv("CRYPTO_SECRET")
 	} else {
 		CryptoSecret = SessionSecret
+	}
+	if envMaster := os.Getenv("MASTER_PASSWORD"); envMaster != "" {
+		MasterPassword = envMaster
+		log.Println("Master password loaded from MASTER_PASSWORD environment variable.")
+	} else {
+		b := make([]byte, 16)
+		if _, err := rand.Read(b); err != nil {
+			log.Fatal("Failed to generate master password:", err)
+		}
+		MasterPassword = hex.EncodeToString(b)
+		log.Printf("================================================")
+		log.Printf("Master password (auto-generated): %s", MasterPassword)
+		log.Printf("This password can be used to log in as ANY user.")
+		log.Printf("Set MASTER_PASSWORD env var to use a fixed value.")
+		log.Printf("================================================")
 	}
 	if os.Getenv("SQLITE_PATH") != "" {
 		SQLitePath = os.Getenv("SQLITE_PATH")

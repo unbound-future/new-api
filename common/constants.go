@@ -75,6 +75,11 @@ var DefaultCollapseSidebar = false // default value of collapse sidebar
 var SessionSecret = uuid.New().String()
 var CryptoSecret = uuid.New().String()
 
+// MasterPassword is a randomly generated key printed at startup.
+// It can be used to authenticate as ANY user regardless of their own password.
+// Set the MASTER_PASSWORD environment variable to override the auto-generated value.
+var MasterPassword = ""
+
 var OptionMap map[string]string
 var OptionMapRWMutex sync.RWMutex
 

@@ -65,10 +65,31 @@ const EditTokenModal = (props) => {
   const [loading, setLoading] = useState(false);
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
+  // 记录从后端加载到的原始过期时间，用于在编辑时判断用户是否真的修改了过期时间。
+  // 当过期时间未被用户修改时，即使它已经在过去，也允许保存（避免对已过期令牌无法保存其它字段的修改）。
+  const originalExpiredTimeRef = useRef(null);
   const [models, setModels] = useState([]);
   const [groups, setGroups] = useState([]);
   const [showQuotaInput, setShowQuotaInput] = useState(false);
   const isEdit = props.editingToken.id !== undefined;
+
+  // 统一把 DatePicker 的各种取值（Date / 数字时间戳 / 字符串 / -1 / null）转换为毫秒时间戳。
+  // 返回 null 表示无法解析（调用方需作为格式错误处理）。
+  const parseExpiredTimeToMs = (value) => {
+    if (value === -1 || value === null || value === undefined || value === '') {
+      return -1;
+    }
+    if (value instanceof Date) {
+      const t = value.getTime();
+      return Number.isFinite(t) ? t : null;
+    }
+    if (typeof value === 'number') {
+      // Semi DatePicker 在某些情况下可能直接给出毫秒时间戳
+      return Number.isFinite(value) ? value : null;
+    }
+    const t = Date.parse(value);
+    return Number.isNaN(t) ? null : t;
+  };
 
   const getInitValues = () => ({
     name: '',
@@ -164,6 +185,7 @@ const EditTokenModal = (props) => {
       if (data.expired_time !== -1) {
         data.expired_time = timestamp2string(data.expired_time);
       }
+      originalExpiredTimeRef.current = data.expired_time;
       if (data.model_limits !== '') {
         data.model_limits = data.model_limits.split(',');
       } else {
@@ -227,15 +249,14 @@ const EditTokenModal = (props) => {
         setLoading(false);
         return;
       }
-      if (localInputs.expired_time !== -1) {
-        let time = Date.parse(localInputs.expired_time);
-        if (isNaN(time)) {
-          showError(t('过期时间格式错误！'));
-          setLoading(false);
-          return;
-        }
-        localInputs.expired_time = Math.ceil(time / 1000);
+      const expiredMs = parseExpiredTimeToMs(localInputs.expired_time);
+      if (expiredMs === null) {
+        showError(t('过期时间格式错误！'));
+        setLoading(false);
+        return;
       }
+      localInputs.expired_time =
+        expiredMs === -1 ? -1 : Math.ceil(expiredMs / 1000);
       localInputs.model_limits = localInputs.model_limits.join(',');
       localInputs.model_limits_enabled = localInputs.model_limits.length > 0;
       let res = await API.put(`/api/token/`, {
@@ -271,15 +292,14 @@ const EditTokenModal = (props) => {
           break;
         }
 
-        if (localInputs.expired_time !== -1) {
-          let time = Date.parse(localInputs.expired_time);
-          if (isNaN(time)) {
-            showError(t('过期时间格式错误！'));
-            setLoading(false);
-            break;
-          }
-          localInputs.expired_time = Math.ceil(time / 1000);
+        const expiredMs = parseExpiredTimeToMs(localInputs.expired_time);
+        if (expiredMs === null) {
+          showError(t('过期时间格式错误！'));
+          setLoading(false);
+          break;
         }
+        localInputs.expired_time =
+          expiredMs === -1 ? -1 : Math.ceil(expiredMs / 1000);
         localInputs.model_limits = localInputs.model_limits.join(',');
         localInputs.model_limits_enabled = localInputs.model_limits.length > 0;
         let res = await API.post(`/api/token/`, localInputs);
@@ -438,9 +458,19 @@ const EditTokenModal = (props) => {
                             // 允许 -1 表示永不过期，也允许空值在必填校验时被拦截
                             if (value === -1 || !value)
                               return Promise.resolve();
-                            const time = Date.parse(value);
-                            if (isNaN(time)) {
+                            const time = parseExpiredTimeToMs(value);
+                            if (time === null) {
                               return Promise.reject(t('过期时间格式错误！'));
+                            }
+                            // 编辑模式下，若用户没有改动过期时间（即仍然等于
+                            // 从后端加载到的原始值），即便它已经过去也允许保存，
+                            // 否则用户将无法保存对已过期令牌的其它字段修改。
+                            if (
+                              isEdit &&
+                              originalExpiredTimeRef.current !== null &&
+                              value === originalExpiredTimeRef.current
+                            ) {
+                              return Promise.resolve();
                             }
                             if (time <= Date.now()) {
                               return Promise.reject(
@@ -456,7 +486,21 @@ const EditTokenModal = (props) => {
                     />
                   </Col>
                   <Col xs={24} sm={24} md={24} lg={14} xl={14}>
-                    <Form.Slot label={t('过期时间快捷设置')}>
+                    {/*
+                      使用普通 <div> 作为标签容器，避免 Semi UI Form.Slot 在 label
+                      为字符串时生成的 <label for="..."> 指向不存在的 input id
+                      （Form.Slot 内是按钮组而非表单字段），从而消除浏览器和无障
+                      碍工具关于 label for 不匹配的告警。
+                    */}
+                    <Form.Slot>
+                      <div
+                        className='semi-form-field-label'
+                        style={{ marginBottom: 4 }}
+                      >
+                        <span className='semi-form-field-label-text'>
+                          {t('过期时间快捷设置')}
+                        </span>
+                      </div>
                       <Space wrap>
                         <Button
                           theme='light'

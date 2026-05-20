@@ -53,7 +53,11 @@ func (m *metrics) GinMiddleware() gin.HandlerFunc {
 			group = sanitizeLabel(common.GetContextKeyString(c, constant.ContextKeyUserGroup))
 		}
 		modelName := sanitizeLabel(common.GetContextKeyString(c, constant.ContextKeyOriginalModel))
-		channelLabel := strconv.Itoa(common.GetContextKeyInt(c, constant.ContextKeyChannelId))
+		channelId := common.GetContextKeyInt(c, constant.ContextKeyChannelId)
+		channelLabel := strconv.Itoa(channelId)
+		channelName := common.GetContextKeyString(c, constant.ContextKeyChannelName)
+		channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
+		cNameLabel, cTypeLabel := m.channelLabels(channelId, channelName, channelType)
 		isStreamLabel := strconv.FormatBool(common.GetContextKeyBool(c, constant.ContextKeyIsStream))
 
 		// 出口 apiType 从 path 重新派生(RelayFormat 暂未通过 context 传播到中间件层)。
@@ -64,12 +68,15 @@ func (m *metrics) GinMiddleware() gin.HandlerFunc {
 
 		m.requestsTotal.WithLabelValues(
 			uidLabel, unameLabel, group, modelName, channelLabel,
+			cNameLabel, cTypeLabel,
 			apiTypeFinal, isStreamLabel,
 			statusLabel, strconv.Itoa(statusCode), errorTypeLabel,
 		).Inc()
 
 		m.requestDurationSeconds.WithLabelValues(
-			uidLabel, modelName, group, channelLabel, apiTypeFinal, isStreamLabel, statusLabel,
+			uidLabel, modelName, group, channelLabel,
+			cNameLabel, cTypeLabel,
+			apiTypeFinal, isStreamLabel, statusLabel,
 		).Observe(time.Since(start).Seconds())
 	}
 }

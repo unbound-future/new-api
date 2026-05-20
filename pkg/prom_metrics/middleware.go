@@ -1,6 +1,7 @@
 package prom_metrics
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -57,6 +58,8 @@ func (m *metrics) GinMiddleware() gin.HandlerFunc {
 		channelLabel := strconv.Itoa(channelId)
 		channelName := common.GetContextKeyString(c, constant.ContextKeyChannelName)
 		channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
+		// DEBUG: 临时日志，定位 channel_name 为空的问题
+		common.SysLog(fmt.Sprintf("[prom_metrics-debug] channelId=%d, channelName=%q, channelType=%d, path=%s", channelId, channelName, channelType, path))
 		cNameLabel, cTypeLabel := m.channelLabels(channelId, channelName, channelType)
 		isStreamLabel := strconv.FormatBool(common.GetContextKeyBool(c, constant.ContextKeyIsStream))
 

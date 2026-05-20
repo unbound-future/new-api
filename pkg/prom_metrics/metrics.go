@@ -127,7 +127,7 @@ func newMetrics(reg prometheus.Registerer, cfg Config) (*metrics, error) {
 		Subsystem: "relay",
 		Name:      "e2e_requests_total",
 		Help:      "Total number of E2E relay requests.",
-	}, []string{"user_id", "username", "group", "model", "channel_id", "channel_name", "channel_type", "api_type", "status"})
+	}, []string{"user_id", "username", "group", "model", "channel_id", "channel_name", "channel_type", "api_type", "status", "status_code"})
 
 	m.e2eRequestDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -412,8 +412,9 @@ func (m *metrics) RecordE2ERequest(info *relaycommon.RelayInfo, statusCode int, 
 	cNameLabel, cTypeLabel := m.channelLabels(channelId, channelName, channelType)
 	apiType := coerceAPIType(NormalizeAPIType(info.RelayFormat, ""))
 	statusLabel, _ := ClassifyOutcome(statusCode)
+	statusCodeLabel := strconv.Itoa(statusCode)
 
-	m.e2eRequestsTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel, apiType, statusLabel).Inc()
+	m.e2eRequestsTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel, apiType, statusLabel, statusCodeLabel).Inc()
 	m.e2eRequestDuration.WithLabelValues(uid, modelName, group, channelLabel, cNameLabel, cTypeLabel, apiType, statusLabel).Observe(duration)
 }
 

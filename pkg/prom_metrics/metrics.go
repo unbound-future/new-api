@@ -219,6 +219,9 @@ func (m *metrics) RecordRelaySettled(info *relaycommon.RelayInfo, s SettledSampl
 
 // RecordUpstreamDuration 记录上游提供商往返耗时。
 func (m *metrics) RecordUpstreamDuration(channelId int, channelName string, channelType int, modelName string, duration float64, statusCode int) {
+	if channelId == 0 {
+		return
+	}
 	defer func() {
 		if r := recover(); r != nil {
 			common.SysError(fmt.Sprintf("prom_metrics RecordUpstreamDuration panic: %v", r))
@@ -233,6 +236,9 @@ func (m *metrics) RecordUpstreamDuration(channelId int, channelName string, chan
 
 // RecordChannelError 记录渠道错误。
 func (m *metrics) RecordChannelError(channelId int, channelName string, channelType int, errType string, statusCode int) {
+	if channelId == 0 {
+		return
+	}
 	defer func() {
 		if r := recover(); r != nil {
 			common.SysError(fmt.Sprintf("prom_metrics RecordChannelError panic: %v", r))
@@ -246,6 +252,9 @@ func (m *metrics) RecordChannelError(channelId int, channelName string, channelT
 
 // UpdateChannelStatus 更新渠道健康状态 gauge。
 func (m *metrics) UpdateChannelStatus(channelId int, channelName string, channelType int, enabled bool) {
+	if channelId == 0 {
+		return
+	}
 	defer func() {
 		if r := recover(); r != nil {
 			common.SysError(fmt.Sprintf("prom_metrics UpdateChannelStatus panic: %v", r))

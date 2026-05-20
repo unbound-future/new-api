@@ -3,6 +3,7 @@ package prom_metrics
 import (
 	"strings"
 
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -145,4 +146,19 @@ func ClassifyOutcome(statusCode int) (status string, errorType string) {
 	default:
 		return "error", "internal"
 	}
+}
+
+// channelLabels 根据 CHANNEL_LABEL 开关决定是否输出 channel_name/channel_type。
+// 关闭时一律返回空串。
+func (m *metrics) channelLabels(channelId int, channelName string, channelType int) (cName, cType string) {
+	if !m.cfg.ChannelLabel {
+		return "", ""
+	}
+	cName = sanitizeLabel(channelName)
+	if name, ok := constant.ChannelTypeNames[channelType]; ok {
+		cType = strings.ToLower(strings.ReplaceAll(name, " ", "_"))
+	} else {
+		cType = LabelUnknown
+	}
+	return cName, cType
 }

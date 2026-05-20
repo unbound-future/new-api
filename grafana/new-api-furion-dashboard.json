@@ -1,0 +1,583 @@
+{
+  "annotations": { "list": [] },
+  "description": "newapi 监控面板 (对标 Furion 指标映射)",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "panels": [],
+      "title": "系统指标",
+      "type": "row"
+    },
+    {
+      "title": "账单记录输入token为0请求数rpm",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 1 },
+      "id": 101,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 80 }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["max", "sum"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Total", "sortDesc": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [{ "expr": "sum (increase(newapi_relay_token_anomaly_total{token_type=\"prompt\", model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[1m])) by (username, model, token_type)", "legendFormat": "__auto", "refId": "A" }]
+    },
+    {
+      "title": "账单输出token为0请求数rpm",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 1 },
+      "id": 102,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 80 }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["max", "lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Max", "sortDesc": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [{ "expr": "sum (increase(newapi_relay_token_anomaly_total{token_type=\"completion\", model=~\"$model\", channel_id=~\"$channel_id\"}[1m])) by (model, channel_id) > 0", "legendFormat": "__auto", "refId": "A" }]
+    },
+    {
+      "title": "账单记录请求数rpm",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 8 },
+      "id": 103,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 80 }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["max"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Max", "sortDesc": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [{ "expr": "sum (increase(newapi_relay_consume_log_traffic_total{model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[1m])) by (model, token_type, username)", "legendFormat": "__auto", "refId": "A" }]
+    },
+    {
+      "title": "账单错误请求数rpm",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 8 },
+      "id": 104,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 80 }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["max", "sum"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Total", "sortDesc": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [{ "expr": "sum (increase(newapi_relay_consume_log_traffic_failed_total{model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[1m])) by (model, token_type, username, channel_id)", "legendFormat": "__auto", "refId": "A" }]
+    },
+    {
+      "title": "账单成功记录请求数rpm",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 15 },
+      "id": 105,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 80 }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["max"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Max", "sortDesc": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [{ "expr": "sum (increase(newapi_relay_consume_log_traffic_success_total{model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[1m])) by (model, token_type, username)", "legendFormat": "__auto", "refId": "A" }]
+    },
+    {
+      "title": "成功流量 - 账单记录请求数差额",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 15 },
+      "id": 106,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 80 }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["max"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Max", "sortDesc": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [{ "expr": "sum (increase(newapi_relay_e2e_requests_total{status=\"success\", model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[1m])) by (model, username) - sum (increase(newapi_relay_consume_log_traffic_total{model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[1m])) by (model, username) != 0", "legendFormat": "__auto", "refId": "A" }]
+    },
+    {
+      "collapsed": true,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 200,
+      "panels": [
+        {
+          "title": "用户请求量/min 分token",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 23 },
+          "id": 201,
+          "fieldConfig": { "defaults": { "unit": "reqpm", "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+          "options": { "legend": { "calcs": ["max", "last"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Max", "sortDesc": true }, "tooltip": { "mode": "single", "sort": "none" } },
+          "targets": [{ "expr": "sum (rate(newapi_relay_e2e_requests_total{model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[$__rate_interval])) * 60 by (username, model, token_type)", "legendFormat": "__auto", "refId": "A" }]
+        },
+        {
+          "title": "用户每分钟成功率 非5xx",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 10, "w": 12, "x": 0, "y": 31 },
+          "id": 202,
+          "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+          "options": { "legend": { "calcs": ["max", "lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Last *", "sortDesc": true }, "tooltip": { "mode": "single", "sort": "none" } },
+          "targets": [{ "expr": "1 - clamp_max( (sum(increase(newapi_relay_e2e_requests_total{status=\"error\", model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\", status_code!~\"5.*\"}[1m])) by (model, username) or sum(0 * increase(newapi_relay_e2e_requests_total{model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[1m])) by (model, username)) / sum(increase(newapi_relay_e2e_requests_total{model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[1m])) by (model, username), 1)", "legendFormat": "__auto", "refId": "A" }]
+        },
+        {
+          "title": "用户每分钟成功率 5xx",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 10, "w": 12, "x": 12, "y": 31 },
+          "id": 203,
+          "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+          "options": { "legend": { "calcs": ["max", "lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Last *", "sortDesc": true }, "tooltip": { "mode": "single", "sort": "none" } },
+          "targets": [{ "expr": "1 - clamp_max( (sum(increase(newapi_relay_e2e_requests_total{status=\"error\", model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\", status_code=~\"5.*\"}[1m])) by (model, username) or sum(0 * increase(newapi_relay_e2e_requests_total{model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[1m])) by (model, username)) / sum(increase(newapi_relay_e2e_requests_total{model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[1m])) by (model, username), 1)", "legendFormat": "__auto", "refId": "A" }]
+        },
+        {
+          "title": "失败请求数每分钟",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 41 },
+          "id": 204,
+          "fieldConfig": { "defaults": { "unit": "reqpm", "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+          "options": { "legend": { "calcs": ["last", "sum", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Last", "sortDesc": true }, "tooltip": { "mode": "multi", "sort": "none" } },
+          "targets": [{ "expr": "sum (rate(newapi_relay_e2e_requests_total{status=\"error\", model=~\"$model\", username=~\"$username\"}[$__rate_interval])) * 60 by (channel_id, token_type, status_code, error_type, model, username) > 0", "legendFormat": "__auto", "refId": "A" }]
+        },
+        {
+          "title": "成功请求数每分钟 分渠道ID",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 51 },
+          "id": 205,
+          "fieldConfig": { "defaults": { "unit": "reqpm", "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+          "options": { "legend": { "calcs": ["last", "sum"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Last", "sortDesc": true }, "tooltip": { "mode": "none", "sort": "none" } },
+          "targets": [{ "expr": "sum (rate(newapi_relay_e2e_requests_total{status=\"success\", model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[$__rate_interval])) * 60 by (api_type, channel_id, model, username, token_type)", "legendFormat": "__auto", "refId": "A" }]
+        },
+        {
+          "title": "成功请求数每分钟 分tokenname",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 59 },
+          "id": 206,
+          "fieldConfig": { "defaults": { "unit": "reqpm", "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+          "options": { "legend": { "calcs": ["last", "sum"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Last", "sortDesc": true }, "tooltip": { "mode": "none", "sort": "none" } },
+          "targets": [{ "expr": "sum (rate(newapi_relay_e2e_requests_total{status=\"success\", model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[$__rate_interval])) * 60 by (token_type, model, username)", "legendFormat": "__auto", "refId": "A" }]
+        },
+        {
+          "title": "用户请求量/min 分渠道",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 67 },
+          "id": 207,
+          "fieldConfig": { "defaults": { "unit": "reqpm", "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+          "options": { "legend": { "calcs": ["max", "last"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Max", "sortDesc": true }, "tooltip": { "mode": "single", "sort": "none" } },
+          "targets": [{ "expr": "sum (rate(newapi_relay_e2e_requests_total{model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[$__rate_interval])) * 60 by (username, channel_id, channel_name)", "legendFormat": "__auto", "refId": "A" }]
+        },
+        {
+          "title": "成功请求数每分钟 汇总",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 6, "w": 24, "x": 0, "y": 75 },
+          "id": 208,
+          "fieldConfig": { "defaults": { "unit": "reqpm", "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+          "options": { "legend": { "calcs": ["last", "sum", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Last", "sortDesc": true }, "tooltip": { "mode": "none", "sort": "none" } },
+          "targets": [{ "expr": "sum (rate(newapi_relay_e2e_requests_total{status=\"success\", model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[$__rate_interval])) * 60 by (api_type, model, username)", "legendFormat": "__auto", "refId": "A" }]
+        },
+        {
+          "title": "用户请求量/min 汇总",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 6, "w": 24, "x": 0, "y": 81 },
+          "id": 209,
+          "fieldConfig": { "defaults": { "unit": "reqpm", "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+          "options": { "legend": { "calcs": ["max", "sum"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Max", "sortDesc": true }, "tooltip": { "mode": "single", "sort": "none" } },
+          "targets": [{ "expr": "sum (rate(newapi_relay_e2e_requests_total{model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[$__rate_interval])) * 60 by (model, username)", "legendFormat": "__auto", "refId": "A" }]
+        },
+        {
+          "title": "错误日志计数每分钟",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 87 },
+          "id": 210,
+          "fieldConfig": { "defaults": { "unit": "reqpm", "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+          "options": { "legend": { "calcs": ["last", "sum"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Last", "sortDesc": true }, "tooltip": { "mode": "none", "sort": "none" } },
+          "targets": [{ "expr": "sum (rate(newapi_relay_error_log_total{model=~\"$model\"}[$__rate_interval])) * 60 by (model, status_code, error_type)", "legendFormat": "__auto", "refId": "A" }]
+        },
+        {
+          "title": "用户TPM",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 95 },
+          "id": 211,
+          "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+          "options": { "legend": { "calcs": ["max", "lastNotNull", "sum"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Max", "sortDesc": true }, "tooltip": { "mode": "single", "sort": "none" } },
+          "targets": [{ "expr": "sum (rate(newapi_relay_total_tokens_total{model=~\"$model\", channel_id=~\"$channel_id\", username=~\"$username\"}[$__rate_interval])) * 60 by (model, token_type, username)", "legendFormat": "__auto", "refId": "A" }]
+        },
+        {
+          "title": "用户input token总数 /min",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 103 },
+          "id": 212,
+          "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+          "options": { "legend": { "calcs": ["max"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Max", "sortDesc": true }, "tooltip": { "mode": "single", "sort": "none" } },
+          "targets": [{ "expr": "sum (rate(newapi_relay_input_tokens_total{model=~\"$model\", channel_id=~\"$channel_id\", username=~\"$username\"}[$__rate_interval])) * 60 by (model, username)", "legendFormat": "__auto", "refId": "A" }]
+        },
+        {
+          "title": "用户output_tokens_total总数 /min",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 103 },
+          "id": 213,
+          "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+          "options": { "legend": { "calcs": ["max"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Max", "sortDesc": true }, "tooltip": { "mode": "single", "sort": "none" } },
+          "targets": [{ "expr": "sum (rate(newapi_relay_output_tokens_total{model=~\"$model\", username=~\"$username\"}[$__rate_interval])) * 60 by (model, username)", "legendFormat": "__auto", "refId": "A" }]
+        },
+        {
+          "title": "用户cache_hit_tokens_total总数 /min",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 111 },
+          "id": 214,
+          "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+          "options": { "legend": { "calcs": ["max"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Max", "sortDesc": true }, "tooltip": { "mode": "single", "sort": "none" } },
+          "targets": [{ "expr": "sum (rate(newapi_relay_cache_hit_tokens_total{model=~\"$model\", username=~\"$username\"}[$__rate_interval])) * 60 by (model, username)", "legendFormat": "__auto", "refId": "A" }]
+        },
+        {
+          "title": "用户inference_tokens_total总数 /min",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 111 },
+          "id": 215,
+          "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+          "options": { "legend": { "calcs": ["max"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Max", "sortDesc": true }, "tooltip": { "mode": "single", "sort": "none" } },
+          "targets": [{ "expr": "sum (rate(newapi_relay_inference_tokens_total{model=~\"$model\", username=~\"$username\"}[$__rate_interval])) * 60 by (model, username)", "legendFormat": "__auto", "refId": "A" }]
+        },
+        {
+          "title": "1min内用户请求 P50耗时",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 10, "w": 12, "x": 0, "y": 119 },
+          "id": 216,
+          "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "text", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+          "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Max", "sortDesc": true }, "tooltip": { "mode": "single", "sort": "none" } },
+          "targets": [{ "expr": "histogram_quantile(0.5, sum(rate(newapi_relay_e2e_request_duration_seconds_bucket{model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[$__rate_interval])) by (le, model, username, channel_id))", "legendFormat": "P50 {{model}} {{username}}", "refId": "A" }]
+        },
+        {
+          "title": "1min内用户请求 P90耗时",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 10, "w": 12, "x": 12, "y": 119 },
+          "id": 217,
+          "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "text", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+          "options": { "legend": { "calcs": ["last", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Last", "sortDesc": true }, "tooltip": { "mode": "single", "sort": "none" } },
+          "targets": [{ "expr": "histogram_quantile(0.9, sum(rate(newapi_relay_e2e_request_duration_seconds_bucket{model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[$__rate_interval])) by (le, model, username, channel_id))", "legendFormat": "P90 {{model}} {{username}}", "refId": "A" }]
+        },
+        {
+          "title": "1min内用户请求耗时分布",
+          "type": "heatmap",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 129 },
+          "id": 218,
+          "options": {
+            "calculate": false, "cellGap": 1,
+            "color": { "exponent": 0.5, "fill": "dark-orange", "mode": "scheme", "reverse": false, "scale": "exponential", "scheme": "Oranges", "steps": 64 },
+            "filterValues": { "le": 1e-9 },
+            "legend": { "show": true },
+            "tooltip": { "mode": "single", "showColorScale": false, "yHistogram": false },
+            "yAxis": { "axisPlacement": "left", "reverse": false }
+          },
+          "targets": [{ "expr": "sum(rate(newapi_relay_e2e_request_duration_seconds_bucket{model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[$__rate_interval])) by (le)", "legendFormat": "__auto", "refId": "A" }]
+        },
+        {
+          "title": "用户请求重试流量",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "gridPos": { "h": 7, "w": 24, "x": 0, "y": 137 },
+          "id": 219,
+          "fieldConfig": { "defaults": { "unit": "reqpm", "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "series", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+          "options": { "legend": { "calcs": ["max"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Max", "sortDesc": true }, "tooltip": { "mode": "single", "sort": "none" } },
+          "targets": [{ "expr": "sum (rate(newapi_relay_retry_total{model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[$__rate_interval])) * 60 by (group, channel_id, model, api_type, username)", "legendFormat": "__auto", "refId": "A" }]
+        }
+      ],
+      "title": "用户视角",
+      "type": "row"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+      "id": 300,
+      "panels": [],
+      "title": "渠道视角",
+      "type": "row"
+    },
+    {
+      "title": "1m内渠道请求量 - 渠道id",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "id": 301,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "text", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 80 }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["max", "last", "sum"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Max", "sortDesc": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [{ "expr": "sum (rate(newapi_relay_requests_total{model=~\"$model\", channel_id=~\"$channel_id\"}[$__rate_interval])) * 60 by (channel_id, model, api_type)", "legendFormat": "__auto", "refId": "A" }]
+    },
+    {
+      "title": "1m内渠道请求量 - 分供应商",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 32 },
+      "id": 302,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "text", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 80 }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["max", "last", "sum"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Last", "sortDesc": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [{ "expr": "sum (rate(newapi_relay_requests_total{model=~\"$model\"}[$__rate_interval])) * 60 by (channel_id, model, channel_name, token_type)", "legendFormat": "__auto", "refId": "A" }]
+    },
+    {
+      "title": "1m内渠道失败请求量 错误类型",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 37 },
+      "id": 303,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "text", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 80 }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["max", "sum", "last"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Last", "sortDesc": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [{ "expr": "sum (rate(newapi_relay_requests_total{status=\"error\", model=~\"$model\", channel_id=~\"$channel_id\", status_code!~\"2.*\"}[$__rate_interval])) * 60 by (channel_id, error_type, api_type, model) > 0", "legendFormat": "__auto", "refId": "A" }]
+    },
+    {
+      "title": "1m内渠道请求成功",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 45 },
+      "id": 304,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "text", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 80 }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["max", "sum"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Max", "sortDesc": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [{ "expr": "sum (rate(newapi_relay_requests_total{status=\"success\", model=~\"$model\", channel_id=~\"$channel_id\"}[$__rate_interval])) * 60 by (channel_id, api_type, model, status_code, username)", "legendFormat": "__auto", "refId": "A" }]
+    },
+    {
+      "title": "1m内渠道商请求成功率",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 52 },
+      "id": 305,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0, "max": 1,
+          "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "text", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 80 }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Last *", "sortDesc": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [{ "expr": "1 - clamp_max( sum(rate(newapi_relay_requests_total{status=\"error\", model=~\"$model\", channel_id=~\"$channel_id\"}[$__rate_interval])) by (model, api_type) / sum(rate(newapi_relay_requests_total{model=~\"$model\", channel_id=~\"$channel_id\"}[$__rate_interval])) by (model, api_type), 1)", "legendFormat": "__auto", "refId": "A" }]
+    },
+    {
+      "title": "1m内渠道失败请求量",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 60 },
+      "id": 306,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "text", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 80 }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["max"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Max", "sortDesc": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [{ "expr": "sum (rate(newapi_relay_requests_total{status=\"error\", model=~\"$model\", channel_id=~\"$channel_id\"}[$__rate_interval])) * 60 by (channel_id, model, status_code)", "legendFormat": "__auto", "refId": "A" }]
+    },
+    {
+      "title": "1m内渠道请求重试次数",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 60 },
+      "id": 307,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "text", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 80 }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["max"], "displayMode": "table", "placement": "bottom", "showLegend": true, "sortBy": "Max", "sortDesc": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [{ "expr": "sum (rate(newapi_relay_retry_total{model=~\"$model\", channel_id=~\"$channel_id\"}[$__rate_interval])) * 60 by (channel_id, model, api_type)", "legendFormat": "__auto", "refId": "A" }]
+    },
+    {
+      "title": "1m内渠道90分位值耗时",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 68 },
+      "id": 308,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "axisColorMode": "text", "scaleDistribution": { "type": "linear" }, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 80 }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["min", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [
+        { "expr": "histogram_quantile(0.9, sum(rate(newapi_relay_request_duration_seconds_bucket{model=~\"$model\", channel_id=~\"$channel_id\"}[$__rate_interval])) by (le, model, channel_id))", "legendFormat": "P90 {{model}} ch{{channel_id}}", "refId": "A" },
+        { "expr": "histogram_quantile(0.5, sum(rate(newapi_relay_e2e_request_duration_seconds_bucket{model=~\"$model\", channel_id=~\"$channel_id\"}[$__rate_interval])) by (le, model, channel_id))", "legendFormat": "P50 E2E {{model}} ch{{channel_id}}", "refId": "B" }
+      ]
+    },
+    {
+      "title": "1m内渠道请求耗时分布",
+      "type": "heatmap",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 76 },
+      "id": 309,
+      "options": {
+        "calculate": false, "cellGap": 1,
+        "color": { "exponent": 0.5, "fill": "dark-orange", "mode": "scheme", "reverse": false, "scale": "exponential", "scheme": "Oranges", "steps": 64 },
+        "filterValues": { "le": 1e-9 },
+        "legend": { "show": true },
+        "tooltip": { "mode": "single", "showColorScale": false, "yHistogram": false },
+        "yAxis": { "axisPlacement": "left", "reverse": false }
+      },
+      "targets": [{ "expr": "sum(rate(newapi_relay_request_duration_seconds_bucket{model=~\"$model\", channel_id=~\"$channel_id\"}[$__rate_interval])) by (le)", "legendFormat": "__auto", "refId": "A" }]
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 39,
+  "tags": ["newapi"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "Prometheus", "value": "Prometheus" },
+        "hide": 0, "includeAll": false, "multi": false, "name": "datasource",
+        "query": "prometheus", "refresh": 1, "type": "datasource"
+      },
+      {
+        "allValue": ".*", "current": { "selected": true, "text": "All", "value": "$__all" },
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "definition": "label_values(newapi_relay_requests_total, model)",
+        "hide": 0, "includeAll": true, "multi": true, "name": "model",
+        "query": { "query": "label_values(newapi_relay_requests_total, model)", "refId": "StandardVariableQuery" },
+        "refresh": 2, "sort": 1, "type": "query"
+      },
+      {
+        "allValue": ".*", "current": { "selected": true, "text": "All", "value": "$__all" },
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "definition": "label_values(newapi_relay_requests_total, channel_id)",
+        "hide": 0, "includeAll": true, "multi": true, "name": "channel_id",
+        "query": { "query": "label_values(newapi_relay_requests_total, channel_id)", "refId": "StandardVariableQuery" },
+        "refresh": 2, "sort": 1, "type": "query"
+      },
+      {
+        "allValue": ".*", "current": { "selected": true, "text": "All", "value": "$__all" },
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "definition": "label_values(newapi_relay_e2e_requests_total, username)",
+        "hide": 0, "includeAll": true, "multi": true, "name": "username",
+        "query": { "query": "label_values(newapi_relay_e2e_requests_total, username)", "refId": "StandardVariableQuery" },
+        "refresh": 2, "sort": 1, "type": "query"
+      },
+      {
+        "allValue": ".*", "current": { "selected": true, "text": "All", "value": "$__all" },
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "definition": "label_values(newapi_relay_e2e_requests_total, token_type)",
+        "hide": 0, "includeAll": true, "multi": true, "name": "token_type",
+        "query": { "query": "label_values(newapi_relay_e2e_requests_total, token_type)", "refId": "StandardVariableQuery" },
+        "refresh": 2, "sort": 1, "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-5m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "newapi 面板 (Furion 对标)",
+  "uid": "newapi-furion",
+  "version": 1
+}

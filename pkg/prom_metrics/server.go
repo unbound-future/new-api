@@ -128,6 +128,50 @@ func RecordChannelError(channelId int, channelName string, channelType int, errT
 	m.RecordChannelError(channelId, channelName, channelType, errType, statusCode)
 }
 
+// RecordRetry 由重试路径调用。Init 未运行时安全 no-op。
+func RecordRetry(info *relaycommon.RelayInfo) {
+	globalMu.Lock()
+	m := global
+	globalMu.Unlock()
+	if m == nil {
+		return
+	}
+	m.RecordRetry(info)
+}
+
+// RecordE2ERequest 由 relay 完成时调用。Init 未运行时安全 no-op。
+func RecordE2ERequest(info *relaycommon.RelayInfo, statusCode int, duration float64) {
+	globalMu.Lock()
+	m := global
+	globalMu.Unlock()
+	if m == nil {
+		return
+	}
+	m.RecordE2ERequest(info, statusCode, duration)
+}
+
+// RecordErrorLog 由错误日志记录路径调用。Init 未运行时安全 no-op。
+func RecordErrorLog(info *relaycommon.RelayInfo, errType string, statusCode int) {
+	globalMu.Lock()
+	m := global
+	globalMu.Unlock()
+	if m == nil {
+		return
+	}
+	m.RecordErrorLog(info, errType, statusCode)
+}
+
+// RecordConsumeLogTraffic 由消费日志路径调用。Init 未运行时安全 no-op。
+func RecordConsumeLogTraffic(info *relaycommon.RelayInfo, tokenType string, failed bool, errorCode string) {
+	globalMu.Lock()
+	m := global
+	globalMu.Unlock()
+	if m == nil {
+		return
+	}
+	m.RecordConsumeLogTraffic(info, tokenType, failed, errorCode)
+}
+
 // UpdateChannelStatus 由渠道状态变更路径调用。Init 未运行时安全 no-op。
 func UpdateChannelStatus(channelId int, channelName string, channelType int, enabled bool) {
 	globalMu.Lock()

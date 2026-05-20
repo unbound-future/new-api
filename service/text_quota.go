@@ -33,6 +33,7 @@ type textQuotaSummary struct {
 	CacheCreationTokens1h    int
 	ImageTokens              int
 	AudioTokens              int
+	ThinkingTokens           int // reasoning tokens (深度思考)
 	ModelName                string
 	TokenName                string
 	UseTimeSeconds           int64
@@ -193,6 +194,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	summary.CacheCreationTokens1h = usage.ClaudeCacheCreation1hTokens
 	summary.ImageTokens = usage.PromptTokensDetails.ImageTokens
 	summary.AudioTokens = usage.PromptTokensDetails.AudioTokens
+	summary.ThinkingTokens = usage.CompletionTokenDetails.ReasoningTokens
 	legacyClaudeDerived := isLegacyClaudeDerivedOpenAIUsage(relayInfo, usage)
 	isOpenRouterClaudeBilling := relayInfo.ChannelMeta != nil &&
 		relayInfo.ChannelType == constant.ChannelTypeOpenRouter &&
@@ -496,6 +498,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 			CompletionTokens:    summary.CompletionTokens,
 			CacheReadTokens:     summary.CacheTokens,
 			CacheCreationTokens: summary.CacheCreationTokens,
+			ThinkingTokens:      summary.ThinkingTokens,
 			Quota:               summary.Quota,
 		})
 		coslog.Record(ctx, relayInfo)

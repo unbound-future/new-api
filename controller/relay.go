@@ -67,6 +67,7 @@ func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 }
 
 func Relay(c *gin.Context, relayFormat types.RelayFormat) {
+	e2eStart := time.Now()
 
 	requestId := c.GetString(common.RequestIdKey)
 	//group := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
@@ -88,6 +89,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 
 	defer func() {
+		// 记录 E2E 指标
+		statusCode := c.Writer.Status()
+		e2eDuration := time.Since(e2eStart).Seconds()
+		relayInfo := c.Value(constant.ContextKeyRelayInfo).(*relaycommon.RelayInfo)
+		if relayInfo != nil {
+			prom_metrics.RecordE2ERequest(relayInfo, statusCode, e2eDuration)
+		}
+
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", newAPIError.Error()))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
@@ -123,6 +132,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
 	}
+	c.Set(string(constant.ContextKeyRelayInfo), relayInfo)
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	needCountToken := constant.CountToken
@@ -234,6 +244,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
 		}
+		prom_metrics.RecordRetry(relayInfo)
 	}
 
 	useChannel := c.GetStringSlice("use_channel")
@@ -403,6 +414,11 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		}
 		useTimeSeconds := int(time.Since(startTime).Seconds())
 		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
+
+		// 记录 prom_metrics 错误日志指标
+		if ri, ok := c.Value(string(constant.ContextKeyRelayInfo)).(*relaycommon.RelayInfo); ok && ri != nil {
+			prom_metrics.RecordErrorLog(ri, string(err.GetErrorType()), err.StatusCode)
+		}
 	}
 
 }

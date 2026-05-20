@@ -256,6 +256,8 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		Group:            relayInfo.UsingGroup,
 		Other:            other,
 	})
+	// 记录 prom_metrics 消费日志流量指标
+	prom_metrics.RecordConsumeLogTraffic(relayInfo, tokenName, false, "")
 	coslog.PrepareContext(ctx)
 	gopool.Go(func() {
 		prom_metrics.RecordRelaySettled(relayInfo, prom_metrics.SettledSample{
@@ -386,6 +388,8 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		Group:            relayInfo.UsingGroup,
 		Other:            other,
 	})
+	// 记录 prom_metrics 消费日志流量指标
+	prom_metrics.RecordConsumeLogTraffic(relayInfo, tokenName, false, "")
 	coslog.PrepareContext(ctx)
 	gopool.Go(func() {
 		perfmetrics.RecordRelaySample(relayInfo, true, int64(usage.CompletionTokens))

@@ -66,4 +66,7 @@ const (
 	// ContextKeyLanguage stores the user's language preference for i18n
 	ContextKeyLanguage ContextKey = "language"
 	ContextKeyIsStream ContextKey = "is_stream"
+
+	// ContextKeyRelayInfo stores the RelayInfo for E2E metrics
+	ContextKeyRelayInfo ContextKey = "relay_info"
 )

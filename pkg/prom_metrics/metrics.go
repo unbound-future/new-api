@@ -22,6 +22,7 @@ type SettledSample struct {
 	CompletionTokens    int
 	CacheReadTokens     int
 	CacheCreationTokens int
+	ThinkingTokens      int // reasoning tokens (深度思考)
 	Quota               int
 }
 
@@ -35,6 +36,26 @@ type metrics struct {
 	tokensTotal            *prometheus.CounterVec
 	quotaConsumedTotal     *prometheus.CounterVec
 	activeRequests         *prometheus.GaugeVec
+
+	// 重试计数
+	retryTotal *prometheus.CounterVec
+	// E2E 端到端指标
+	e2eRequestsTotal    *prometheus.CounterVec
+	e2eRequestDuration  *prometheus.HistogramVec
+	// Token 异常计数
+	tokenAnomalyTotal *prometheus.CounterVec
+	// Token 分类计数（input/output/cache_hit/inference/total）
+	inputTokensTotal     *prometheus.CounterVec
+	outputTokensTotal    *prometheus.CounterVec
+	cacheHitTokensTotal  *prometheus.CounterVec
+	inferenceTokensTotal *prometheus.CounterVec
+	totalTokensTotal     *prometheus.CounterVec
+	// 错误日志计数
+	errorLogTotal *prometheus.CounterVec
+	// 消费日志流量
+	consumeLogTrafficTotal   *prometheus.CounterVec
+	consumeLogTrafficFailed  *prometheus.CounterVec
+	consumeLogTrafficSuccess *prometheus.CounterVec
 
 	// 渠道专属指标
 	channelUpstreamDuration *prometheus.HistogramVec
@@ -92,6 +113,82 @@ func newMetrics(reg prometheus.Registerer, cfg Config) (*metrics, error) {
 		Help:      "Number of in-flight relay requests.",
 	}, []string{"api_type", "model"})
 
+	// 重试计数
+	m.retryTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: "relay",
+		Name:      "retry_total",
+		Help:      "Total number of relay request retries.",
+	}, []string{"user_id", "username", "group", "model", "channel_id", "channel_name", "channel_type", "api_type"})
+
+	// E2E 端到端指标
+	m.e2eRequestsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: "relay",
+		Name:      "e2e_requests_total",
+		Help:      "Total number of E2E relay requests.",
+	}, []string{"user_id", "username", "group", "model", "channel_id", "channel_name", "channel_type", "api_type", "status"})
+
+	m.e2eRequestDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: namespace,
+		Subsystem: "relay",
+		Name:      "e2e_request_duration_seconds",
+		Help:      "E2E relay request duration in seconds.",
+		Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300},
+	}, []string{"user_id", "model", "group", "channel_id", "channel_name", "channel_type", "api_type", "status"})
+
+	// Token 异常计数（prompt/completion/thinking/total 为零或负数）
+	m.tokenAnomalyTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: "relay",
+		Name:      "token_anomaly_total",
+		Help:      "Total number of token count anomalies (zero or negative).",
+	}, []string{"user_id", "username", "group", "model", "channel_id", "channel_name", "channel_type", "token_type"})
+
+	// Token 分类计数
+	tokenLabels := []string{"user_id", "username", "group", "model", "channel_id", "channel_name", "channel_type", "token_type"}
+	m.inputTokensTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace, Subsystem: "relay", Name: "input_tokens_total",
+		Help: "Total input tokens.",
+	}, tokenLabels)
+	m.outputTokensTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace, Subsystem: "relay", Name: "output_tokens_total",
+		Help: "Total output tokens.",
+	}, tokenLabels)
+	m.cacheHitTokensTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace, Subsystem: "relay", Name: "cache_hit_tokens_total",
+		Help: "Total cache hit tokens.",
+	}, tokenLabels)
+	m.inferenceTokensTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace, Subsystem: "relay", Name: "inference_tokens_total",
+		Help: "Total inference tokens.",
+	}, tokenLabels)
+	m.totalTokensTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace, Subsystem: "relay", Name: "total_tokens_total",
+		Help: "Total tokens (input + output).",
+	}, tokenLabels)
+
+	// 错误日志计数
+	m.errorLogTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace, Subsystem: "relay", Name: "error_log_total",
+		Help: "Total error log count.",
+	}, []string{"user_id", "username", "group", "model", "channel_id", "channel_name", "channel_type", "error_type", "status_code"})
+
+	// 消费日志流量
+	consumeLabels := []string{"user_id", "username", "group", "model", "channel_id", "channel_name", "channel_type", "token_type"}
+	m.consumeLogTrafficTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace, Subsystem: "relay", Name: "consume_log_traffic_total",
+		Help: "Total consume log traffic count.",
+	}, consumeLabels)
+	m.consumeLogTrafficFailed = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace, Subsystem: "relay", Name: "consume_log_traffic_failed_total",
+		Help: "Total failed consume log traffic count.",
+	}, append(consumeLabels, "error_code"))
+	m.consumeLogTrafficSuccess = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace, Subsystem: "relay", Name: "consume_log_traffic_success_total",
+		Help: "Total successful consume log traffic count.",
+	}, consumeLabels)
+
 	m.channelUpstreamDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Subsystem: "relay",
@@ -121,6 +218,19 @@ func newMetrics(reg prometheus.Registerer, cfg Config) (*metrics, error) {
 		m.tokensTotal,
 		m.quotaConsumedTotal,
 		m.activeRequests,
+		m.retryTotal,
+		m.e2eRequestsTotal,
+		m.e2eRequestDuration,
+		m.tokenAnomalyTotal,
+		m.inputTokensTotal,
+		m.outputTokensTotal,
+		m.cacheHitTokensTotal,
+		m.inferenceTokensTotal,
+		m.totalTokensTotal,
+		m.errorLogTotal,
+		m.consumeLogTrafficTotal,
+		m.consumeLogTrafficFailed,
+		m.consumeLogTrafficSuccess,
 		m.channelUpstreamDuration,
 		m.channelErrorsTotal,
 		m.channelStatus,
@@ -191,20 +301,32 @@ func (m *metrics) RecordRelaySettled(info *relaycommon.RelayInfo, s SettledSampl
 	}
 	cNameLabel, cTypeLabel := m.channelLabels(channelId, channelName, channelType)
 
+	tokenBase := []string{uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel}
 	if s.PromptTokens > 0 {
-		m.tokensTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel, "prompt").Add(float64(s.PromptTokens))
+		m.tokensTotal.WithLabelValues(append(tokenBase, "prompt")...).Add(float64(s.PromptTokens))
+		m.inputTokensTotal.WithLabelValues(append(tokenBase, "prompt")...).Add(float64(s.PromptTokens))
 	}
 	if s.CompletionTokens > 0 {
-		m.tokensTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel, "completion").Add(float64(s.CompletionTokens))
+		m.tokensTotal.WithLabelValues(append(tokenBase, "completion")...).Add(float64(s.CompletionTokens))
+		m.outputTokensTotal.WithLabelValues(append(tokenBase, "completion")...).Add(float64(s.CompletionTokens))
 	}
 	if s.CacheReadTokens > 0 {
-		m.tokensTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel, "cache_read").Add(float64(s.CacheReadTokens))
+		m.tokensTotal.WithLabelValues(append(tokenBase, "cache_read")...).Add(float64(s.CacheReadTokens))
+		m.cacheHitTokensTotal.WithLabelValues(append(tokenBase, "cache_read")...).Add(float64(s.CacheReadTokens))
 	}
 	if s.CacheCreationTokens > 0 {
-		m.tokensTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel, "cache_creation").Add(float64(s.CacheCreationTokens))
+		m.tokensTotal.WithLabelValues(append(tokenBase, "cache_creation")...).Add(float64(s.CacheCreationTokens))
+	}
+	if s.ThinkingTokens > 0 {
+		m.tokensTotal.WithLabelValues(append(tokenBase, "thinking")...).Add(float64(s.ThinkingTokens))
+		m.inferenceTokensTotal.WithLabelValues(append(tokenBase, "thinking")...).Add(float64(s.ThinkingTokens))
+	}
+	totalTokens := s.PromptTokens + s.CompletionTokens
+	if totalTokens > 0 {
+		m.totalTokensTotal.WithLabelValues(append(tokenBase, "total")...).Add(float64(totalTokens))
 	}
 	if s.Quota > 0 {
-		m.quotaConsumedTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel).Add(float64(s.Quota))
+		m.quotaConsumedTotal.WithLabelValues(tokenBase...).Add(float64(s.Quota))
 	}
 
 	// TTFT 仅在流式且确实有过响应时记录
@@ -215,6 +337,84 @@ func (m *metrics) RecordRelaySettled(info *relaycommon.RelayInfo, s SettledSampl
 			m.firstTokenSeconds.WithLabelValues(uid, modelName, group, channelLabel, cNameLabel, cTypeLabel, apiType).Observe(ttft)
 		}
 	}
+
+	// Token 异常计数
+	if s.PromptTokens <= 0 {
+		m.tokenAnomalyTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel, "prompt").Inc()
+	}
+	if s.CompletionTokens <= 0 {
+		m.tokenAnomalyTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel, "completion").Inc()
+	}
+}
+
+// RecordRetry 记录重试次数。
+func (m *metrics) RecordRetry(info *relaycommon.RelayInfo) {
+	if info == nil {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			common.SysError(fmt.Sprintf("prom_metrics RecordRetry panic: %v", r))
+		}
+	}()
+
+	uid, uname := m.userLabels(info.UserId)
+	group := sanitizeLabel(info.UsingGroup)
+	if group == LabelUnknown {
+		group = sanitizeLabel(info.UserGroup)
+	}
+	modelName := sanitizeLabel(info.OriginModelName)
+
+	channelLabel := "0"
+	channelId := 0
+	channelName := ""
+	channelType := 0
+	if info.ChannelMeta != nil {
+		channelId = info.ChannelId
+		channelLabel = strconv.Itoa(channelId)
+		channelName = info.ChannelName
+		channelType = info.ChannelType
+	}
+	cNameLabel, cTypeLabel := m.channelLabels(channelId, channelName, channelType)
+	apiType := coerceAPIType(NormalizeAPIType(info.RelayFormat, ""))
+
+	m.retryTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel, apiType).Inc()
+}
+
+// RecordE2ERequest 记录 E2E 端到端请求。
+func (m *metrics) RecordE2ERequest(info *relaycommon.RelayInfo, statusCode int, duration float64) {
+	if info == nil {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			common.SysError(fmt.Sprintf("prom_metrics RecordE2ERequest panic: %v", r))
+		}
+	}()
+
+	uid, uname := m.userLabels(info.UserId)
+	group := sanitizeLabel(info.UsingGroup)
+	if group == LabelUnknown {
+		group = sanitizeLabel(info.UserGroup)
+	}
+	modelName := sanitizeLabel(info.OriginModelName)
+
+	channelLabel := "0"
+	channelId := 0
+	channelName := ""
+	channelType := 0
+	if info.ChannelMeta != nil {
+		channelId = info.ChannelId
+		channelLabel = strconv.Itoa(channelId)
+		channelName = info.ChannelName
+		channelType = info.ChannelType
+	}
+	cNameLabel, cTypeLabel := m.channelLabels(channelId, channelName, channelType)
+	apiType := coerceAPIType(NormalizeAPIType(info.RelayFormat, ""))
+	statusLabel, _ := ClassifyOutcome(statusCode)
+
+	m.e2eRequestsTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel, apiType, statusLabel).Inc()
+	m.e2eRequestDuration.WithLabelValues(uid, modelName, group, channelLabel, cNameLabel, cTypeLabel, apiType, statusLabel).Observe(duration)
 }
 
 // RecordUpstreamDuration 记录上游提供商往返耗时。
@@ -266,4 +466,74 @@ func (m *metrics) UpdateChannelStatus(channelId int, channelName string, channel
 		val = 1
 	}
 	m.channelStatus.WithLabelValues(strconv.Itoa(channelId), cName, cType).Set(val)
+}
+
+// RecordErrorLog 记录错误日志。
+func (m *metrics) RecordErrorLog(info *relaycommon.RelayInfo, errType string, statusCode int) {
+	if info == nil {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			common.SysError(fmt.Sprintf("prom_metrics RecordErrorLog panic: %v", r))
+		}
+	}()
+
+	uid, uname := m.userLabels(info.UserId)
+	group := sanitizeLabel(info.UsingGroup)
+	if group == LabelUnknown {
+		group = sanitizeLabel(info.UserGroup)
+	}
+	modelName := sanitizeLabel(info.OriginModelName)
+	channelLabel := "0"
+	channelId := 0
+	channelName := ""
+	channelType := 0
+	if info.ChannelMeta != nil {
+		channelId = info.ChannelId
+		channelLabel = strconv.Itoa(channelId)
+		channelName = info.ChannelName
+		channelType = info.ChannelType
+	}
+	cNameLabel, cTypeLabel := m.channelLabels(channelId, channelName, channelType)
+
+	m.errorLogTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel, coerceErrorType(errType), strconv.Itoa(statusCode)).Inc()
+}
+
+// RecordConsumeLogTraffic 记录消费日志流量。
+func (m *metrics) RecordConsumeLogTraffic(info *relaycommon.RelayInfo, tokenType string, failed bool, errorCode string) {
+	if info == nil {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			common.SysError(fmt.Sprintf("prom_metrics RecordConsumeLogTraffic panic: %v", r))
+		}
+	}()
+
+	uid, uname := m.userLabels(info.UserId)
+	group := sanitizeLabel(info.UsingGroup)
+	if group == LabelUnknown {
+		group = sanitizeLabel(info.UserGroup)
+	}
+	modelName := sanitizeLabel(info.OriginModelName)
+	channelLabel := "0"
+	channelId := 0
+	channelName := ""
+	channelType := 0
+	if info.ChannelMeta != nil {
+		channelId = info.ChannelId
+		channelLabel = strconv.Itoa(channelId)
+		channelName = info.ChannelName
+		channelType = info.ChannelType
+	}
+	cNameLabel, cTypeLabel := m.channelLabels(channelId, channelName, channelType)
+	base := []string{uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel, sanitizeLabel(tokenType)}
+
+	m.consumeLogTrafficTotal.WithLabelValues(base...).Inc()
+	if failed {
+		m.consumeLogTrafficFailed.WithLabelValues(append(base, errorCode)...).Inc()
+	} else {
+		m.consumeLogTrafficSuccess.WithLabelValues(base...).Inc()
+	}
 }

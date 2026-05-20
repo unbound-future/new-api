@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/pkg/prom_metrics"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -515,13 +516,26 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		}
 	}
 
+	// 计时上游请求
+	upstreamStart := time.Now()
 	resp, err := client.Do(req)
+	upstreamDuration := time.Since(upstreamStart).Seconds()
+
 	if err != nil {
 		logger.LogError(c, "do request failed: "+err.Error())
+		// 记录上游耗时（失败场景，statusCode=0）
+		if info.ChannelMeta != nil {
+			prom_metrics.RecordUpstreamDuration(info.ChannelId, info.ChannelName, info.ChannelType, info.UpstreamModelName, upstreamDuration, 0)
+		}
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
 	}
 	if resp == nil {
 		return nil, errors.New("resp is nil")
+	}
+
+	// 记录上游耗时（成功场景）
+	if info.ChannelMeta != nil {
+		prom_metrics.RecordUpstreamDuration(info.ChannelId, info.ChannelName, info.ChannelType, info.UpstreamModelName, upstreamDuration, resp.StatusCode)
 	}
 
 	if upID := resp.Header.Get(common2.RequestIdKey); upID != "" {

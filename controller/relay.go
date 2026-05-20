@@ -92,9 +92,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		// 记录 E2E 指标
 		statusCode := c.Writer.Status()
 		e2eDuration := time.Since(e2eStart).Seconds()
-		relayInfo := c.Value(constant.ContextKeyRelayInfo).(*relaycommon.RelayInfo)
-		if relayInfo != nil {
-			prom_metrics.RecordE2ERequest(relayInfo, statusCode, e2eDuration)
+		if ri, ok := c.Value(string(constant.ContextKeyRelayInfo)).(*relaycommon.RelayInfo); ok && ri != nil {
+			prom_metrics.RecordE2ERequest(ri, statusCode, e2eDuration)
 		}
 
 		if newAPIError != nil {

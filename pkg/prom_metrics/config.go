@@ -10,7 +10,8 @@ type Config struct {
 	Host      string
 	Port      int
 	Path      string
-	UserLabel bool // false 时 user_id/username 标签固定为空,降级到聚合视角
+	UserLabel    bool // false 时 user_id/username 标签固定为空,降级到聚合视角
+	ChannelLabel bool // false 时 channel_id/channel_name 标签固定为空,降级到聚合视角
 }
 
 const (
@@ -18,7 +19,8 @@ const (
 	envHost      = "PROMETHEUS_METRICS_HOST"
 	envPort      = "PROMETHEUS_METRICS_PORT"
 	envPath      = "PROMETHEUS_METRICS_PATH"
-	envUserLabel = "PROMETHEUS_METRICS_USER_LABEL"
+	envUserLabel    = "PROMETHEUS_METRICS_USER_LABEL"
+	envChannelLabel = "PROMETHEUS_METRICS_CHANNEL_LABEL"
 )
 
 func LoadConfig() Config {
@@ -27,6 +29,7 @@ func LoadConfig() Config {
 		Host:      common.GetEnvOrDefaultString(envHost, "127.0.0.1"),
 		Port:      common.GetEnvOrDefault(envPort, 9100),
 		Path:      common.GetEnvOrDefaultString(envPath, "/metrics"),
-		UserLabel: common.GetEnvOrDefaultBool(envUserLabel, true),
+		UserLabel:    common.GetEnvOrDefaultBool(envUserLabel, true),
+		ChannelLabel: common.GetEnvOrDefaultBool(envChannelLabel, true),
 	}
 }

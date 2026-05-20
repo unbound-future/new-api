@@ -152,3 +152,64 @@ func TestRecordRelaySettled_UserLabelDisabled(t *testing.T) {
 		t.Errorf("expected 5 prompt tokens under empty user labels, got %v", got)
 	}
 }
+
+func TestRecordUpstreamDuration(t *testing.T) {
+	m := newTestMetrics(t)
+	m.RecordUpstreamDuration(42, "test-channel", 14, "gpt-4o", 0.5, 200)
+
+	if c := testutil.CollectAndCount(m.channelUpstreamDuration); c != 1 {
+		t.Fatalf("expected 1 upstream duration sample, got %d", c)
+	}
+}
+
+func TestRecordChannelError(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m, err := newMetrics(reg, Config{Enabled: true, ChannelLabel: true})
+	if err != nil {
+		t.Fatalf("newMetrics: %v", err)
+	}
+	m.RecordChannelError(42, "test-channel", 14, "upstream_5xx", 500)
+
+	got := testutil.ToFloat64(m.channelErrorsTotal.WithLabelValues("42", "test-channel", "anthropic", "upstream_5xx", "500"))
+	if got != 1 {
+		t.Fatalf("expected channel_errors_total=1, got %v", got)
+	}
+}
+
+func TestUpdateChannelStatus(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m, err := newMetrics(reg, Config{Enabled: true, ChannelLabel: true})
+	if err != nil {
+		t.Fatalf("newMetrics: %v", err)
+	}
+
+	// 启用状态
+	m.UpdateChannelStatus(42, "test-channel", 14, true)
+	got := testutil.ToFloat64(m.channelStatus.WithLabelValues("42", "test-channel", "anthropic"))
+	if got != 1 {
+		t.Fatalf("expected channel_status=1 (enabled), got %v", got)
+	}
+
+	// 禁用状态
+	m.UpdateChannelStatus(42, "test-channel", 14, false)
+	got = testutil.ToFloat64(m.channelStatus.WithLabelValues("42", "test-channel", "anthropic"))
+	if got != 0 {
+		t.Fatalf("expected channel_status=0 (disabled), got %v", got)
+	}
+}
+
+func TestChannelLabelDisabled(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m, err := newMetrics(reg, Config{Enabled: true, ChannelLabel: false})
+	if err != nil {
+		t.Fatalf("newMetrics: %v", err)
+	}
+
+	m.RecordChannelError(42, "test-channel", 14, "upstream_5xx", 500)
+
+	// ChannelLabel=false 时，channel_name/channel_type 应为空
+	got := testutil.ToFloat64(m.channelErrorsTotal.WithLabelValues("42", "", "", "upstream_5xx", "500"))
+	if got != 1 {
+		t.Fatalf("expected 1 error with empty channel labels, got %v", got)
+	}
+}

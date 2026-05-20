@@ -84,7 +84,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(rate(newapi_relay_requests_total{status=~\"$status\", user_id=~\"$user_id\", username=~\"$username\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\"}[$__rate_interval]))",
+          "expr": "sum(increase(newapi_relay_requests_total{status=~\"$status\", user_id=~\"$user_id\", username=~\"$username\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\"}[$__rate_interval]))",
           "legendFormat": "QPS",
           "refId": "A"
         }
@@ -145,7 +145,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(rate(newapi_relay_requests_total{status=\"error\", user_id=~\"$user_id\", username=~\"$username\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\"}[$__rate_interval])) / clamp_min(sum(rate(newapi_relay_requests_total{user_id=~\"$user_id\", username=~\"$username\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\"}[$__rate_interval])), 1)",
+          "expr": "sum(increase(newapi_relay_requests_total{status=\"error\", user_id=~\"$user_id\", username=~\"$username\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\"}[$__rate_interval])) / clamp_min(sum(increase(newapi_relay_requests_total{user_id=~\"$user_id\", username=~\"$username\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\"}[$__rate_interval])), 1)",
           "legendFormat": "Error Rate",
           "refId": "A"
         }
@@ -206,7 +206,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(newapi_relay_request_duration_seconds_bucket{user_id=~\"$user_id\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\", status=~\"$status\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (increase(newapi_relay_request_duration_seconds_bucket{user_id=~\"$user_id\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\", status=~\"$status\"}[$__rate_interval])))",
           "legendFormat": "P95",
           "refId": "A"
         }
@@ -457,7 +457,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (model) (rate(newapi_relay_requests_total{user_id=~\"$user_id\", username=~\"$username\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\", status=~\"$status\"}[$__rate_interval]))",
+          "expr": "sum by (model) (increase(newapi_relay_requests_total{user_id=~\"$user_id\", username=~\"$username\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\", status=~\"$status\"}[$__rate_interval]))",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -520,7 +520,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (username) (rate(newapi_relay_requests_total{user_id=~\"$user_id\", username=~\"$username\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\", status=~\"$status\"}[$__rate_interval]))",
+          "expr": "sum by (username) (increase(newapi_relay_requests_total{user_id=~\"$user_id\", username=~\"$username\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\", status=~\"$status\"}[$__rate_interval]))",
           "legendFormat": "{{username}}",
           "refId": "A"
         }
@@ -585,7 +585,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (model) (rate(newapi_relay_requests_total{status=\"error\", user_id=~\"$user_id\", username=~\"$username\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\"}[$__rate_interval])) / clamp_min(sum by (model) (rate(newapi_relay_requests_total{user_id=~\"$user_id\", username=~\"$username\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\"}[$__rate_interval])), 1)",
+          "expr": "sum by (model) (increase(newapi_relay_requests_total{status=\"error\", user_id=~\"$user_id\", username=~\"$username\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\"}[$__rate_interval])) / clamp_min(sum by (model) (increase(newapi_relay_requests_total{user_id=~\"$user_id\", username=~\"$username\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\"}[$__rate_interval])), 1)",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -767,17 +767,17 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(newapi_relay_request_duration_seconds_bucket{user_id=~\"$user_id\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\", status=~\"$status\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (increase(newapi_relay_request_duration_seconds_bucket{user_id=~\"$user_id\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\", status=~\"$status\"}[$__rate_interval])))",
           "legendFormat": "P50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(newapi_relay_request_duration_seconds_bucket{user_id=~\"$user_id\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\", status=~\"$status\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (increase(newapi_relay_request_duration_seconds_bucket{user_id=~\"$user_id\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\", status=~\"$status\"}[$__rate_interval])))",
           "legendFormat": "P95",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(newapi_relay_request_duration_seconds_bucket{user_id=~\"$user_id\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\", status=~\"$status\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (increase(newapi_relay_request_duration_seconds_bucket{user_id=~\"$user_id\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\", status=~\"$status\"}[$__rate_interval])))",
           "legendFormat": "P99",
           "refId": "C"
         }
@@ -840,7 +840,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le, model) (rate(newapi_relay_request_duration_seconds_bucket{user_id=~\"$user_id\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\", status=~\"$status\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le, model) (increase(newapi_relay_request_duration_seconds_bucket{user_id=~\"$user_id\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\", status=~\"$status\"}[$__rate_interval])))",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -949,17 +949,17 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(newapi_relay_first_token_seconds_bucket{user_id=~\"$user_id\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (increase(newapi_relay_first_token_seconds_bucket{user_id=~\"$user_id\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\"}[$__rate_interval])))",
           "legendFormat": "P50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(newapi_relay_first_token_seconds_bucket{user_id=~\"$user_id\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (increase(newapi_relay_first_token_seconds_bucket{user_id=~\"$user_id\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\"}[$__rate_interval])))",
           "legendFormat": "P95",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(newapi_relay_first_token_seconds_bucket{user_id=~\"$user_id\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (increase(newapi_relay_first_token_seconds_bucket{user_id=~\"$user_id\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\"}[$__rate_interval])))",
           "legendFormat": "P99",
           "refId": "C"
         }
@@ -1022,7 +1022,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le, model) (rate(newapi_relay_first_token_seconds_bucket{user_id=~\"$user_id\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le, model) (increase(newapi_relay_first_token_seconds_bucket{user_id=~\"$user_id\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\"}[$__rate_interval])))",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -1547,6 +1547,245 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 65
+      },
+      "id": 200,
+      "panels": [],
+      "title": "渠道视角 (Channel Overview)",
+      "type": "row"
+    },
+    {
+      "title": "RPM 按渠道",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 66
+      },
+      "id": 201,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(newapi_relay_requests_total{channel_id!=\"\", channel_name=~\"$channel_name\", channel_type=~\"$channel_type\"}[1m])) by (channel_name)",
+          "legendFormat": "{{channel_name}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "成功率 按渠道",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 66
+      },
+      "id": 202,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "max": 1,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(newapi_relay_requests_total{status=\"success\", channel_id!=\"\", channel_name=~\"$channel_name\", channel_type=~\"$channel_type\"}[5m])) by (channel_name) / sum(increase(newapi_relay_requests_total{channel_id!=\"\", channel_name=~\"$channel_name\", channel_type=~\"$channel_type\"}[5m])) by (channel_name)",
+          "legendFormat": "{{channel_name}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "P95 请求时延 按渠道",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 74
+      },
+      "id": 203,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(newapi_relay_request_duration_seconds_bucket{channel_id!=\"\", channel_name=~\"$channel_name\", channel_type=~\"$channel_type\"}[5m])) by (le, channel_name))",
+          "legendFormat": "{{channel_name}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "渠道错误分布",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 74
+      },
+      "id": 204,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(newapi_relay_channel_errors_total{channel_name=~\"$channel_name\", channel_type=~\"$channel_type\"}[5m])) by (channel_name, error_type)",
+          "legendFormat": "{{channel_name}} - {{error_type}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "渠道健康状态",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 82
+      },
+      "id": 205,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Disabled",
+                  "color": "red"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "Healthy",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "newapi_relay_channel_status{channel_name=~\"$channel_name\", channel_type=~\"$channel_type\"}",
+          "legendFormat": "{{channel_name}}",
+          "refId": "A"
+        }
+      ]
     }
   ],
   "refresh": "30s",
@@ -1756,6 +1995,38 @@
         "refresh": 2,
         "regex": "",
         "sort": 3,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "${datasource}",
+        "definition": "label_values(newapi_relay_requests_total, channel_name)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "channel_name",
+        "query": {
+          "query": "label_values(newapi_relay_requests_total, channel_name)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": "${datasource}",
+        "definition": "label_values(newapi_relay_requests_total, channel_type)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "channel_type",
+        "query": {
+          "query": "label_values(newapi_relay_requests_total, channel_type)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
         "type": "query"
       }
     ]

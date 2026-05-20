@@ -106,6 +106,39 @@ func RecordRelaySettled(info *relaycommon.RelayInfo, s SettledSample) {
 	m.RecordRelaySettled(info, s)
 }
 
+// RecordUpstreamDuration 由上游请求完成时调用。Init 未运行时安全 no-op。
+func RecordUpstreamDuration(channelId int, channelName string, channelType int, modelName string, duration float64, statusCode int) {
+	globalMu.Lock()
+	m := global
+	globalMu.Unlock()
+	if m == nil {
+		return
+	}
+	m.RecordUpstreamDuration(channelId, channelName, channelType, modelName, duration, statusCode)
+}
+
+// RecordChannelError 由错误处理路径调用。Init 未运行时安全 no-op。
+func RecordChannelError(channelId int, channelName string, channelType int, errType string, statusCode int) {
+	globalMu.Lock()
+	m := global
+	globalMu.Unlock()
+	if m == nil {
+		return
+	}
+	m.RecordChannelError(channelId, channelName, channelType, errType, statusCode)
+}
+
+// UpdateChannelStatus 由渠道状态变更路径调用。Init 未运行时安全 no-op。
+func UpdateChannelStatus(channelId int, channelName string, channelType int, enabled bool) {
+	globalMu.Lock()
+	m := global
+	globalMu.Unlock()
+	if m == nil {
+		return
+	}
+	m.UpdateChannelStatus(channelId, channelName, channelType, enabled)
+}
+
 // resetGlobalForTest 与 ShutdownForTest 只在单测中使用。
 func resetGlobalForTest() {
 	globalMu.Lock()

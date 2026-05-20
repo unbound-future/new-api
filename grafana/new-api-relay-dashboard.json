@@ -1998,35 +1998,55 @@
         "type": "query"
       },
       {
-        "current": {},
-        "datasource": "${datasource}",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
         "definition": "label_values(newapi_relay_requests_total, channel_name)",
         "hide": 0,
         "includeAll": true,
+        "label": "渠道名称",
         "multi": true,
         "name": "channel_name",
+        "options": [],
         "query": {
           "query": "label_values(newapi_relay_requests_total, channel_name)",
-          "refId": "StandardVariableQuery"
+          "refId": "A"
         },
         "refresh": 2,
-        "sort": 1,
+        "regex": "",
+        "sort": 4,
         "type": "query"
       },
       {
-        "current": {},
-        "datasource": "${datasource}",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
         "definition": "label_values(newapi_relay_requests_total, channel_type)",
         "hide": 0,
         "includeAll": true,
+        "label": "渠道类型",
         "multi": true,
         "name": "channel_type",
+        "options": [],
         "query": {
           "query": "label_values(newapi_relay_requests_total, channel_type)",
-          "refId": "StandardVariableQuery"
+          "refId": "A"
         },
         "refresh": 2,
-        "sort": 1,
+        "regex": "",
+        "sort": 5,
         "type": "query"
       }
     ]

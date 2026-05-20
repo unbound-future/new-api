@@ -177,35 +177,42 @@ func (m *metrics) RecordRelaySettled(info *relaycommon.RelayInfo, s SettledSampl
 		group = sanitizeLabel(info.UserGroup)
 	}
 	modelName := sanitizeLabel(info.OriginModelName)
-	// ChannelMeta 经由 *ChannelMeta 嵌入,在 InitChannelMeta 之前(或部分调用路径)可能为 nil。
+
+	// 渠道标签
 	channelLabel := "0"
+	channelId := 0
+	channelName := ""
+	channelType := 0
 	if info.ChannelMeta != nil {
-		channelLabel = strconv.Itoa(info.ChannelId)
+		channelId = info.ChannelId
+		channelLabel = strconv.Itoa(channelId)
+		channelName = info.ChannelName
+		channelType = info.ChannelType
 	}
+	cNameLabel, cTypeLabel := m.channelLabels(channelId, channelName, channelType)
 
 	if s.PromptTokens > 0 {
-		m.tokensTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, "prompt").Add(float64(s.PromptTokens))
+		m.tokensTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel, "prompt").Add(float64(s.PromptTokens))
 	}
 	if s.CompletionTokens > 0 {
-		m.tokensTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, "completion").Add(float64(s.CompletionTokens))
+		m.tokensTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel, "completion").Add(float64(s.CompletionTokens))
 	}
 	if s.CacheReadTokens > 0 {
-		m.tokensTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, "cache_read").Add(float64(s.CacheReadTokens))
+		m.tokensTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel, "cache_read").Add(float64(s.CacheReadTokens))
 	}
 	if s.CacheCreationTokens > 0 {
-		m.tokensTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, "cache_creation").Add(float64(s.CacheCreationTokens))
+		m.tokensTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel, "cache_creation").Add(float64(s.CacheCreationTokens))
 	}
 	if s.Quota > 0 {
-		m.quotaConsumedTotal.WithLabelValues(uid, uname, group, modelName, channelLabel).Add(float64(s.Quota))
+		m.quotaConsumedTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel).Add(float64(s.Quota))
 	}
 
-	// TTFT 仅在流式且确实有过响应时记录。RelayInfo 不存于 gin.Context,
-	// 因此 TTFT 放在结算钩子而非 middleware。
+	// TTFT 仅在流式且确实有过响应时记录
 	if info.IsStream && info.HasSendResponse() {
 		apiType := coerceAPIType(NormalizeAPIType(info.RelayFormat, ""))
 		ttft := info.FirstResponseTime.Sub(info.StartTime).Seconds()
 		if ttft > 0 {
-			m.firstTokenSeconds.WithLabelValues(uid, modelName, group, channelLabel, apiType).Observe(ttft)
+			m.firstTokenSeconds.WithLabelValues(uid, modelName, group, channelLabel, cNameLabel, cTypeLabel, apiType).Observe(ttft)
 		}
 	}
 }

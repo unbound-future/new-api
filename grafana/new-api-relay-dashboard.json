@@ -55,7 +55,7 @@
               }
             ]
           },
-          "unit": "reqps"
+          "unit": "reqpm"
         },
         "overrides": []
       },
@@ -80,12 +80,12 @@
         },
         "textMode": "auto"
       },
-      "title": "当前 QPS",
+      "title": "当前 RPM",
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(increase(newapi_relay_requests_total{status=~\"$status\", user_id=~\"$user_id\", username=~\"$username\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\"}[$__rate_interval]))",
-          "legendFormat": "QPS",
+          "expr": "sum(rate(newapi_relay_requests_total{status=~\"$status\", user_id=~\"$user_id\", username=~\"$username\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\"}[$__rate_interval])) * 60",
+          "legendFormat": "RPM",
           "refId": "A"
         }
       ]
@@ -412,7 +412,7 @@
               "mode": "off"
             }
           },
-          "unit": "reqps"
+          "unit": "reqpm"
         },
         "overrides": [
           {
@@ -453,11 +453,11 @@
           "sort": "desc"
         }
       },
-      "title": "QPS 按模型",
+      "title": "RPM 按模型",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (model) (increase(newapi_relay_requests_total{user_id=~\"$user_id\", username=~\"$username\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\", status=~\"$status\"}[$__rate_interval]))",
+          "expr": "sum by (model) (rate(newapi_relay_requests_total{user_id=~\"$user_id\", username=~\"$username\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\", status=~\"$status\"}[$__rate_interval])) * 60",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -491,7 +491,7 @@
               "mode": "off"
             }
           },
-          "unit": "reqps"
+          "unit": "reqpm"
         },
         "overrides": []
       },
@@ -516,11 +516,11 @@
           "sort": "desc"
         }
       },
-      "title": "QPS 按用户",
+      "title": "RPM 按用户",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (username) (increase(newapi_relay_requests_total{user_id=~\"$user_id\", username=~\"$username\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\", status=~\"$status\"}[$__rate_interval]))",
+          "expr": "sum by (username) (rate(newapi_relay_requests_total{user_id=~\"$user_id\", username=~\"$username\", model=~\"$model\", group=~\"$group\", channel_id=~\"$channel_id\", api_type=~\"$api_type\", status=~\"$status\"}[$__rate_interval])) * 60",
           "legendFormat": "{{username}}",
           "refId": "A"
         }
@@ -1576,7 +1576,9 @@
       },
       "id": 201,
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "unit": "reqpm"
+        },
         "overrides": []
       },
       "options": {
@@ -1592,7 +1594,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(newapi_relay_requests_total{channel_id!=\"\", channel_name=~\"$channel_name\", channel_type=~\"$channel_type\"}[1m])) by (channel_name)",
+          "expr": "sum(rate(newapi_relay_requests_total{channel_id!=\"\", channel_name=~\"$channel_name\", channel_type=~\"$channel_type\"}[$__rate_interval])) * 60 by (channel_name)",
           "legendFormat": "{{channel_name}}",
           "refId": "A"
         }

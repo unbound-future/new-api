@@ -35,6 +35,11 @@ type metrics struct {
 	tokensTotal            *prometheus.CounterVec
 	quotaConsumedTotal     *prometheus.CounterVec
 	activeRequests         *prometheus.GaugeVec
+
+	// 渠道专属指标
+	channelUpstreamDuration *prometheus.HistogramVec
+	channelErrorsTotal      *prometheus.CounterVec
+	channelStatus           *prometheus.GaugeVec
 }
 
 func newMetrics(reg prometheus.Registerer, cfg Config) (*metrics, error) {
@@ -48,7 +53,7 @@ func newMetrics(reg prometheus.Registerer, cfg Config) (*metrics, error) {
 		Subsystem: "relay",
 		Name:      "requests_total",
 		Help:      "Total number of relay requests, including failures.",
-	}, []string{"user_id", "username", "group", "model", "channel_id", "api_type", "is_stream", "status", "status_code", "error_type"})
+	}, []string{"user_id", "username", "group", "model", "channel_id", "channel_name", "channel_type", "api_type", "is_stream", "status", "status_code", "error_type"})
 
 	m.requestDurationSeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -56,7 +61,7 @@ func newMetrics(reg prometheus.Registerer, cfg Config) (*metrics, error) {
 		Name:      "request_duration_seconds",
 		Help:      "Relay request total duration in seconds.",
 		Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300},
-	}, []string{"user_id", "model", "group", "channel_id", "api_type", "is_stream", "status"})
+	}, []string{"user_id", "model", "group", "channel_id", "channel_name", "channel_type", "api_type", "is_stream", "status"})
 
 	m.firstTokenSeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -64,21 +69,21 @@ func newMetrics(reg prometheus.Registerer, cfg Config) (*metrics, error) {
 		Name:      "first_token_seconds",
 		Help:      "Time-to-first-token for streaming responses (seconds).",
 		Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20},
-	}, []string{"user_id", "model", "group", "channel_id", "api_type"})
+	}, []string{"user_id", "model", "group", "channel_id", "channel_name", "channel_type", "api_type"})
 
 	m.tokensTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: "relay",
 		Name:      "tokens_total",
 		Help:      "Tokens consumed by token_type (prompt/completion/cache_read/cache_creation).",
-	}, []string{"user_id", "username", "group", "model", "channel_id", "token_type"})
+	}, []string{"user_id", "username", "group", "model", "channel_id", "channel_name", "channel_type", "token_type"})
 
 	m.quotaConsumedTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: "relay",
 		Name:      "quota_consumed_total",
 		Help:      "Quota consumed by relay requests (gateway internal units).",
-	}, []string{"user_id", "username", "group", "model", "channel_id"})
+	}, []string{"user_id", "username", "group", "model", "channel_id", "channel_name", "channel_type"})
 
 	m.activeRequests = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
@@ -87,6 +92,28 @@ func newMetrics(reg prometheus.Registerer, cfg Config) (*metrics, error) {
 		Help:      "Number of in-flight relay requests.",
 	}, []string{"api_type", "model"})
 
+	m.channelUpstreamDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: namespace,
+		Subsystem: "relay",
+		Name:      "channel_upstream_duration_seconds",
+		Help:      "Upstream provider round-trip time in seconds.",
+		Buckets:   []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120},
+	}, []string{"channel_id", "channel_name", "channel_type", "model", "status"})
+
+	m.channelErrorsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: "relay",
+		Name:      "channel_errors_total",
+		Help:      "Channel error count by error classification.",
+	}, []string{"channel_id", "channel_name", "channel_type", "error_type", "status_code"})
+
+	m.channelStatus = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Subsystem: "relay",
+		Name:      "channel_status",
+		Help:      "Channel health status (1=enabled, 0=disabled).",
+	}, []string{"channel_id", "channel_name", "channel_type"})
+
 	for _, c := range []prometheus.Collector{
 		m.requestsTotal,
 		m.requestDurationSeconds,
@@ -94,6 +121,9 @@ func newMetrics(reg prometheus.Registerer, cfg Config) (*metrics, error) {
 		m.tokensTotal,
 		m.quotaConsumedTotal,
 		m.activeRequests,
+		m.channelUpstreamDuration,
+		m.channelErrorsTotal,
+		m.channelStatus,
 	} {
 		if err := reg.Register(c); err != nil {
 			return nil, err
@@ -178,4 +208,46 @@ func (m *metrics) RecordRelaySettled(info *relaycommon.RelayInfo, s SettledSampl
 			m.firstTokenSeconds.WithLabelValues(uid, modelName, group, channelLabel, apiType).Observe(ttft)
 		}
 	}
+}
+
+// RecordUpstreamDuration 记录上游提供商往返耗时。
+func (m *metrics) RecordUpstreamDuration(channelId int, channelName string, channelType int, modelName string, duration float64, statusCode int) {
+	defer func() {
+		if r := recover(); r != nil {
+			common.SysError(fmt.Sprintf("prom_metrics RecordUpstreamDuration panic: %v", r))
+		}
+	}()
+	statusLabel, _ := ClassifyOutcome(statusCode)
+	cName, cType := m.channelLabels(channelId, channelName, channelType)
+	m.channelUpstreamDuration.WithLabelValues(
+		strconv.Itoa(channelId), cName, cType, sanitizeLabel(modelName), statusLabel,
+	).Observe(duration)
+}
+
+// RecordChannelError 记录渠道错误。
+func (m *metrics) RecordChannelError(channelId int, channelName string, channelType int, errType string, statusCode int) {
+	defer func() {
+		if r := recover(); r != nil {
+			common.SysError(fmt.Sprintf("prom_metrics RecordChannelError panic: %v", r))
+		}
+	}()
+	cName, cType := m.channelLabels(channelId, channelName, channelType)
+	m.channelErrorsTotal.WithLabelValues(
+		strconv.Itoa(channelId), cName, cType, coerceErrorType(errType), strconv.Itoa(statusCode),
+	).Inc()
+}
+
+// UpdateChannelStatus 更新渠道健康状态 gauge。
+func (m *metrics) UpdateChannelStatus(channelId int, channelName string, channelType int, enabled bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			common.SysError(fmt.Sprintf("prom_metrics UpdateChannelStatus panic: %v", r))
+		}
+	}()
+	cName, cType := m.channelLabels(channelId, channelName, channelType)
+	val := float64(0)
+	if enabled {
+		val = 1
+	}
+	m.channelStatus.WithLabelValues(strconv.Itoa(channelId), cName, cType).Set(val)
 }

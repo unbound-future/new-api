@@ -40,6 +40,12 @@ func (m *metrics) GinMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		// 跳过未到达渠道的请求（鉴权失败、模型不存在等提前终止的场景）
+		channelId := common.GetContextKeyInt(c, constant.ContextKeyChannelId)
+		if channelId == 0 {
+			return
+		}
+
 		// 出口阶段:从 context 读出最终标签值
 		uid := common.GetContextKeyInt(c, constant.ContextKeyUserId)
 		uidLabel, unameLabel := m.userLabels(uid)
@@ -53,7 +59,6 @@ func (m *metrics) GinMiddleware() gin.HandlerFunc {
 			group = sanitizeLabel(common.GetContextKeyString(c, constant.ContextKeyUserGroup))
 		}
 		modelName := sanitizeLabel(common.GetContextKeyString(c, constant.ContextKeyOriginalModel))
-		channelId := common.GetContextKeyInt(c, constant.ContextKeyChannelId)
 		channelLabel := strconv.Itoa(channelId)
 		channelName := common.GetContextKeyString(c, constant.ContextKeyChannelName)
 		channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)

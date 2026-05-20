@@ -1594,7 +1594,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(newapi_relay_requests_total{channel_id!=\"\", channel_name=~\"$channel_name\", channel_type=~\"$channel_type\"}[$__rate_interval])) * 60 by (channel_name)",
+          "expr": "sum by (channel_name) (rate(newapi_relay_requests_total{channel_id!=\"\", channel_name=~\"$channel_name\", channel_type=~\"$channel_type\"}[$__rate_interval])) * 60",
           "legendFormat": "{{channel_name}}",
           "refId": "A"
         }

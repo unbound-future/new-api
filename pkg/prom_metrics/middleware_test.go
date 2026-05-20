@@ -49,7 +49,7 @@ func TestMiddleware_SuccessPath(t *testing.T) {
 	}
 
 	got := testutil.ToFloat64(m.requestsTotal.WithLabelValues(
-		"7", "alice", "default", "gpt-4o", "11", "chat", "false",
+		"7", "alice", "default", "gpt-4o", "11", "", "", "chat", "false",
 		"success", "200", "none",
 	))
 	if got != 1 {
@@ -71,7 +71,7 @@ func TestMiddleware_RateLimit(t *testing.T) {
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil))
 
 	got := testutil.ToFloat64(m.requestsTotal.WithLabelValues(
-		"7", "alice", "default", "gpt-4o", "11", "chat", "false",
+		"7", "alice", "default", "gpt-4o", "11", "", "", "chat", "false",
 		"error", "429", "rate_limit",
 	))
 	if got != 1 {
@@ -90,7 +90,7 @@ func TestMiddleware_Upstream5xx(t *testing.T) {
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil))
 
 	got := testutil.ToFloat64(m.requestsTotal.WithLabelValues(
-		"7", "alice", "default", "gpt-4o", "11", "chat", "false",
+		"7", "alice", "default", "gpt-4o", "11", "", "", "chat", "false",
 		"error", "500", "upstream_5xx",
 	))
 	if got != 1 {

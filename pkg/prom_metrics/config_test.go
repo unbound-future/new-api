@@ -23,6 +23,9 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	if !cfg.UserLabel {
 		t.Fatalf("expected UserLabel default true, got false")
 	}
+	if !cfg.ChannelLabel {
+		t.Fatalf("expected ChannelLabel default true, got false")
+	}
 }
 
 func TestLoadConfig_Overrides(t *testing.T) {
@@ -32,10 +35,11 @@ func TestLoadConfig_Overrides(t *testing.T) {
 	t.Setenv(envPort, "9200")
 	t.Setenv(envPath, "/m")
 	t.Setenv(envUserLabel, "false")
+	t.Setenv(envChannelLabel, "false")
 
 	cfg := LoadConfig()
-	if cfg.Enabled || cfg.UserLabel {
-		t.Fatalf("expected Enabled/UserLabel to be false: %+v", cfg)
+	if cfg.Enabled || cfg.UserLabel || cfg.ChannelLabel {
+		t.Fatalf("expected Enabled/UserLabel/ChannelLabel to be false: %+v", cfg)
 	}
 	if cfg.Host != "0.0.0.0" || cfg.Port != 9200 || cfg.Path != "/m" {
 		t.Fatalf("unexpected overrides: %+v", cfg)
@@ -53,7 +57,7 @@ func TestLoadConfig_InvalidPortFallsBack(t *testing.T) {
 
 func clearEnv(t *testing.T) {
 	t.Helper()
-	for _, k := range []string{envEnabled, envHost, envPort, envPath, envUserLabel} {
+	for _, k := range []string{envEnabled, envHost, envPort, envPath, envUserLabel, envChannelLabel} {
 		_ = os.Unsetenv(k)
 	}
 }

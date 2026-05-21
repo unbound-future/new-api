@@ -2,7 +2,6 @@ package prom_metrics
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -13,7 +12,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	dto "github.com/prometheus/client_model/go"
 
 	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -23,7 +21,6 @@ var (
 	globalMu    sync.Mutex
 	initialized bool // Init 被调用过即为 true,无论 enabled/disabled
 	global      *metrics
-	registry    *prometheus.Registry
 	server      *http.Server
 )
 
@@ -45,7 +42,6 @@ func Init() {
 	}
 
 	reg := prometheus.NewRegistry()
-	registry = reg
 	if err := reg.Register(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{})); err != nil {
 		common.SysError("prometheus process collector registration failed: " + err.Error())
 		return
@@ -67,16 +63,6 @@ func Init() {
 	mux.Handle(cfg.Path, promhttp.HandlerFor(reg, promhttp.HandlerOpts{
 		EnableOpenMetrics: true,
 	}))
-	mux.HandleFunc("/debug/gather", func(w http.ResponseWriter, r *http.Request) {
-		families, err := reg.Gather()
-		if err != nil {
-			fmt.Fprintf(w, "Gather error: %v\n\n", err)
-		}
-		fmt.Fprintf(w, "Total families: %d\n\n", len(families))
-		for _, f := range families {
-			fmt.Fprintf(w, "%s (%s) - %d metrics\n", f.GetName(), f.GetType(), len(f.GetMetric()))
-		}
-	})
 
 	addr := net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port))
 	srv := &http.Server{
@@ -195,18 +181,6 @@ func UpdateChannelStatus(channelId int, channelName string, channelType int, ena
 		return
 	}
 	m.UpdateChannelStatus(channelId, channelName, channelType, enabled)
-}
-
-// GatherDebug 返回 Gather 结果用于调试。
-func GatherDebug() []*dto.MetricFamily {
-	globalMu.Lock()
-	reg := registry
-	globalMu.Unlock()
-	if reg == nil {
-		return nil
-	}
-	families, _ := reg.Gather()
-	return families
 }
 
 // resetGlobalForTest 与 ShutdownForTest 只在单测中使用。

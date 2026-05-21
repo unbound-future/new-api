@@ -211,7 +211,7 @@ func newMetrics(reg prometheus.Registerer, cfg Config) (*metrics, error) {
 		Help:      "Channel health status (1=enabled, 0=disabled).",
 	}, []string{"channel_id", "channel_name", "channel_type"})
 
-	collectors := []prometheus.Collector{
+	for _, c := range []prometheus.Collector{
 		m.requestsTotal,
 		m.requestDurationSeconds,
 		m.firstTokenSeconds,
@@ -234,14 +234,11 @@ func newMetrics(reg prometheus.Registerer, cfg Config) (*metrics, error) {
 		m.channelUpstreamDuration,
 		m.channelErrorsTotal,
 		m.channelStatus,
-	}
-	for i, c := range collectors {
+	} {
 		if err := reg.Register(c); err != nil {
-			common.SysError(fmt.Sprintf("[prom_metrics-debug] register[%d] failed: %v", i, err))
 			return nil, err
 		}
 	}
-	common.SysLog(fmt.Sprintf("[prom_metrics-debug] registered %d collectors", len(collectors)))
 	return m, nil
 }
 
@@ -387,7 +384,6 @@ func (m *metrics) RecordRetry(info *relaycommon.RelayInfo) {
 // RecordE2ERequest 记录 E2E 端到端请求。
 func (m *metrics) RecordE2ERequest(info *relaycommon.RelayInfo, statusCode int, duration float64) {
 	if info == nil {
-		common.SysLog("[prom_metrics-debug] RecordE2ERequest: info is nil")
 		return
 	}
 	defer func() {
@@ -395,7 +391,6 @@ func (m *metrics) RecordE2ERequest(info *relaycommon.RelayInfo, statusCode int, 
 			common.SysError(fmt.Sprintf("prom_metrics RecordE2ERequest panic: %v", r))
 		}
 	}()
-	common.SysLog(fmt.Sprintf("[prom_metrics-debug] RecordE2ERequest enter: model=%s, ch=%d, status=%d", info.OriginModelName, info.ChannelId, statusCode))
 
 	uid, uname := m.userLabels(info.UserId)
 	group := sanitizeLabel(info.UsingGroup)
@@ -420,9 +415,7 @@ func (m *metrics) RecordE2ERequest(info *relaycommon.RelayInfo, statusCode int, 
 	statusCodeLabel := strconv.Itoa(statusCode)
 
 	m.e2eRequestsTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel, apiType, statusLabel, statusCodeLabel).Inc()
-	common.SysLog(fmt.Sprintf("[prom_metrics-debug] e2eRequestsTotal.WithLabelValues done: labels=%d", 10))
 	m.e2eRequestDuration.WithLabelValues(uid, modelName, group, channelLabel, cNameLabel, cTypeLabel, apiType, statusLabel).Observe(duration)
-	common.SysLog("[prom_metrics-debug] e2eRequestDuration.Observe done")
 }
 
 // RecordUpstreamDuration 记录上游提供商往返耗时。

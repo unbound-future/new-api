@@ -67,11 +67,11 @@ func Init() {
 	mux.HandleFunc("/debug/gather", func(w http.ResponseWriter, r *http.Request) {
 		families, err := reg.Gather()
 		if err != nil {
-			fmt.Fprintf(w, "Gather error: %v\n", err)
+			fmt.Fprintf(w, "Gather error: %v\n\n", err)
 		}
-		fmt.Fprintf(w, "Total families: %d\n", len(families))
+		fmt.Fprintf(w, "Total families: %d\n\n", len(families))
 		for _, f := range families {
-			fmt.Fprintf(w, "  %s (%s) - %d metrics\n", f.GetName(), f.GetType(), len(f.GetMetric()))
+			fmt.Fprintf(w, "%s (%s) - %d metrics\n", f.GetName(), f.GetType(), len(f.GetMetric()))
 		}
 	})
 

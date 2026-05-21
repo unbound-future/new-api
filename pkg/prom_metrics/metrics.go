@@ -420,7 +420,9 @@ func (m *metrics) RecordE2ERequest(info *relaycommon.RelayInfo, statusCode int, 
 	statusCodeLabel := strconv.Itoa(statusCode)
 
 	m.e2eRequestsTotal.WithLabelValues(uid, uname, group, modelName, channelLabel, cNameLabel, cTypeLabel, apiType, statusLabel, statusCodeLabel).Inc()
+	common.SysLog(fmt.Sprintf("[prom_metrics-debug] e2eRequestsTotal.WithLabelValues done: labels=%d", 10))
 	m.e2eRequestDuration.WithLabelValues(uid, modelName, group, channelLabel, cNameLabel, cTypeLabel, apiType, statusLabel).Observe(duration)
+	common.SysLog("[prom_metrics-debug] e2eRequestDuration.Observe done")
 }
 
 // RecordUpstreamDuration 记录上游提供商往返耗时。

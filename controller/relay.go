@@ -95,8 +95,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		ri, riOk := c.Value(string(constant.ContextKeyRelayInfo)).(*relaycommon.RelayInfo)
 		if riOk && ri != nil {
 			prom_metrics.RecordE2ERequest(ri, statusCode, e2eDuration)
+			common.SysLog(fmt.Sprintf("[prom_metrics-debug] E2E recorded: status=%d, dur=%.3f, model=%s, ch=%d", statusCode, e2eDuration, ri.OriginModelName, ri.ChannelId))
 		} else {
-			logger.LogWarn(c, fmt.Sprintf("[prom_metrics] E2E skip: riOk=%v, ri=%v, key=%q", riOk, ri, string(constant.ContextKeyRelayInfo)))
+			common.SysLog(fmt.Sprintf("[prom_metrics-debug] E2E skip: riOk=%v, ri=%v", riOk, ri))
 		}
 
 		if newAPIError != nil {

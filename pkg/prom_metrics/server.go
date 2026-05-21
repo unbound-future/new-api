@@ -2,6 +2,7 @@ package prom_metrics
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -63,6 +64,16 @@ func Init() {
 	mux.Handle(cfg.Path, promhttp.HandlerFor(reg, promhttp.HandlerOpts{
 		EnableOpenMetrics: true,
 	}))
+	mux.HandleFunc("/debug/gather", func(w http.ResponseWriter, r *http.Request) {
+		families, err := reg.Gather()
+		if err != nil {
+			fmt.Fprintf(w, "Gather error: %v\n", err)
+		}
+		fmt.Fprintf(w, "Total families: %d\n", len(families))
+		for _, f := range families {
+			fmt.Fprintf(w, "  %s (%s) - %d metrics\n", f.GetName(), f.GetType(), len(f.GetMetric()))
+		}
+	})
 
 	addr := net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port))
 	srv := &http.Server{

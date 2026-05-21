@@ -92,8 +92,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		// 记录 E2E 指标
 		statusCode := c.Writer.Status()
 		e2eDuration := time.Since(e2eStart).Seconds()
-		if ri, ok := c.Value(string(constant.ContextKeyRelayInfo)).(*relaycommon.RelayInfo); ok && ri != nil {
+		ri, riOk := c.Value(string(constant.ContextKeyRelayInfo)).(*relaycommon.RelayInfo)
+		if riOk && ri != nil {
 			prom_metrics.RecordE2ERequest(ri, statusCode, e2eDuration)
+		} else {
+			logger.LogWarn(c, fmt.Sprintf("[prom_metrics] E2E skip: riOk=%v, ri=%v, key=%q", riOk, ri, string(constant.ContextKeyRelayInfo)))
 		}
 
 		if newAPIError != nil {

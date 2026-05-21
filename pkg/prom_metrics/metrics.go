@@ -211,7 +211,7 @@ func newMetrics(reg prometheus.Registerer, cfg Config) (*metrics, error) {
 		Help:      "Channel health status (1=enabled, 0=disabled).",
 	}, []string{"channel_id", "channel_name", "channel_type"})
 
-	for _, c := range []prometheus.Collector{
+	collectors := []prometheus.Collector{
 		m.requestsTotal,
 		m.requestDurationSeconds,
 		m.firstTokenSeconds,
@@ -234,11 +234,14 @@ func newMetrics(reg prometheus.Registerer, cfg Config) (*metrics, error) {
 		m.channelUpstreamDuration,
 		m.channelErrorsTotal,
 		m.channelStatus,
-	} {
+	}
+	for i, c := range collectors {
 		if err := reg.Register(c); err != nil {
+			common.SysError(fmt.Sprintf("[prom_metrics-debug] register[%d] failed: %v", i, err))
 			return nil, err
 		}
 	}
+	common.SysLog(fmt.Sprintf("[prom_metrics-debug] registered %d collectors", len(collectors)))
 	return m, nil
 }
 

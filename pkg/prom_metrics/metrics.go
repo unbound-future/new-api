@@ -384,6 +384,7 @@ func (m *metrics) RecordRetry(info *relaycommon.RelayInfo) {
 // RecordE2ERequest 记录 E2E 端到端请求。
 func (m *metrics) RecordE2ERequest(info *relaycommon.RelayInfo, statusCode int, duration float64) {
 	if info == nil {
+		common.SysLog("[prom_metrics-debug] RecordE2ERequest: info is nil")
 		return
 	}
 	defer func() {
@@ -391,6 +392,7 @@ func (m *metrics) RecordE2ERequest(info *relaycommon.RelayInfo, statusCode int, 
 			common.SysError(fmt.Sprintf("prom_metrics RecordE2ERequest panic: %v", r))
 		}
 	}()
+	common.SysLog(fmt.Sprintf("[prom_metrics-debug] RecordE2ERequest enter: model=%s, ch=%d, status=%d", info.OriginModelName, info.ChannelId, statusCode))
 
 	uid, uname := m.userLabels(info.UserId)
 	group := sanitizeLabel(info.UsingGroup)

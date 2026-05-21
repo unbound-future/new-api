@@ -96,6 +96,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if riOk && ri != nil {
 			prom_metrics.RecordE2ERequest(ri, statusCode, e2eDuration)
 			common.SysLog(fmt.Sprintf("[prom_metrics-debug] E2E recorded: status=%d, dur=%.3f, model=%s, ch=%d", statusCode, e2eDuration, ri.OriginModelName, ri.ChannelId))
+			// 检查 Gather 结果
+			families := prom_metrics.GatherDebug()
+			common.SysLog(fmt.Sprintf("[prom_metrics-debug] Gather families: %d", len(families)))
+			for _, f := range families {
+				if f != nil && f.GetName() != "" {
+					common.SysLog(fmt.Sprintf("[prom_metrics-debug]   %s (%s) - %d metrics", f.GetName(), f.GetType(), len(f.GetMetric())))
+				}
+			}
 		} else {
 			common.SysLog(fmt.Sprintf("[prom_metrics-debug] E2E skip: riOk=%v, ri=%v", riOk, ri))
 		}

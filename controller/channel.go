@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type OpenAIModel struct {
@@ -85,6 +86,26 @@ func GetAllChannels(c *gin.Context) {
 			typeFilter = t
 		}
 	}
+	// group filter
+	groupFilter := strings.TrimSpace(c.Query("group"))
+	if groupFilter == "null" {
+		groupFilter = ""
+	}
+
+	// 渠道的 group 字段为逗号分隔的多分组字符串，需要匹配其中包含目标分组
+	applyGroupCondition := func(q *gorm.DB) *gorm.DB {
+		if groupFilter == "" {
+			return q
+		}
+		groupCol := model.GetGroupColumnName()
+		var condition string
+		if common.UsingMySQL {
+			condition = "CONCAT(',', " + groupCol + ", ',') LIKE ?"
+		} else {
+			condition = "(',' || " + groupCol + " || ',') LIKE ?"
+		}
+		return q.Where(condition, "%,"+groupFilter+",%")
+	}
 
 	var total int64
 
@@ -114,6 +135,18 @@ func GetAllChannels(c *gin.Context) {
 				if typeFilter >= 0 && ch.Type != typeFilter {
 					continue
 				}
+				if groupFilter != "" {
+					matched := false
+					for _, g := range ch.GetGroups() {
+						if g == groupFilter {
+							matched = true
+							break
+						}
+					}
+					if !matched {
+						continue
+					}
+				}
 				filtered = append(filtered, ch)
 			}
 			channelData = append(channelData, filtered...)
@@ -129,6 +162,7 @@ func GetAllChannels(c *gin.Context) {
 		} else if statusFilter == 0 {
 			baseQuery = baseQuery.Where("status != ?", common.ChannelStatusEnabled)
 		}
+		baseQuery = applyGroupCondition(baseQuery)
 
 		baseQuery.Count(&total)
 
@@ -150,6 +184,7 @@ func GetAllChannels(c *gin.Context) {
 	} else if statusFilter == 0 {
 		countQuery = countQuery.Where("status != ?", common.ChannelStatusEnabled)
 	}
+	countQuery = applyGroupCondition(countQuery)
 	var results []struct {
 		Type  int64
 		Count int64

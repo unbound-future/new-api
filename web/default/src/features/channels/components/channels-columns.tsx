@@ -929,7 +929,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         const groupArray = parseGroupsList(group)
         return groupArray.some((g) => value.includes(g))
       },
-      size: 150,
+      size: 300,
       enableSorting: false,
     },
 

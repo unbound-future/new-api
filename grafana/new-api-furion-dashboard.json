@@ -709,7 +709,7 @@
           },
           "targets": [
             {
-              "expr": "sum(increase(newapi_relay_e2e_requests_total{status=\"error\", model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\", status_code=~\"5.*\"}[1m])) by (model, username) / clamp_min(sum(increase(newapi_relay_e2e_requests_total{model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[1m])) by (model, username), 1)",
+              "expr": "sum(increase(newapi_relay_requests_total{status=\"error\", model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\", status_code=~\"5.*\"}[1m])) by (model, username) / clamp_min(sum(increase(newapi_relay_requests_total{model=~\"$model\", username=~\"$username\", channel_id=~\"$channel_id\"}[1m])) by (model, username), 1)",
               "legendFormat": "__auto",
               "refId": "A"
             }
@@ -783,7 +783,7 @@
           },
           "targets": [
             {
-              "expr": "sum by (channel_id, token_type, status_code, error_type, model, username) (rate(newapi_relay_e2e_requests_total{status=\"error\", model=~\"$model\", username=~\"$username\"}[$__rate_interval])) * 60 > 0",
+              "expr": "sum by (channel_id, token_type, status_code, error_type, model, username) (rate(newapi_relay_requests_total{status=\"error\", model=~\"$model\", username=~\"$username\"}[$__rate_interval])) * 60 > 0",
               "legendFormat": "__auto",
               "refId": "A"
             }

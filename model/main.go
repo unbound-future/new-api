@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +22,12 @@ var commonGroupCol string
 var commonKeyCol string
 var commonTrueVal string
 var commonFalseVal string
+
+// GetGroupColumnName 返回当前数据库方言下安全引用的 group 列名（带反引号或双引号）
+// 用于 controller 等外部包构造 group 相关的过滤 SQL，避免直接使用 group 关键字
+func GetGroupColumnName() string {
+	return commonGroupCol
+}
 
 var logKeyCol string
 var logGroupCol string
@@ -252,6 +259,10 @@ func migrateDB() error {
 	migrateSubscriptionPlanPriceAmount()
 	// Migrate model_limits column from varchar to text for existing tables
 	if err := migrateTokenModelLimitsToText(); err != nil {
+		return err
+	}
+	// 扩大 channels.group 列长度，避免多分组拼接超长导致 1406 Data too long 报错
+	if err := migrateChannelGroupColumnLength(); err != nil {
 		return err
 	}
 
@@ -504,6 +515,69 @@ func migrateTokenModelLimitsToText() error {
 			return fmt.Errorf("failed to migrate %s.%s to text: %w", tableName, columnName, err)
 		}
 		common.SysLog(fmt.Sprintf("Successfully migrated %s.%s to text", tableName, columnName))
+	}
+	return nil
+}
+
+// migrateChannelGroupColumnLength 将 channels.group 列长度从 varchar(64) 扩大到 varchar(255)
+// 防止用户配置多分组（逗号拼接）时拼接后字符串长度超过 64 触发 MySQL Error 1406
+// 该迁移幂等：仅当现有列长度小于 255 时执行 ALTER。
+func migrateChannelGroupColumnLength() error {
+	// SQLite 不严格限制 VARCHAR 长度，无需迁移
+	if common.UsingSQLite {
+		return nil
+	}
+
+	tableName := "channels"
+	columnName := "group"
+
+	if !DB.Migrator().HasTable(tableName) {
+		return nil
+	}
+
+	if !DB.Migrator().HasColumn(&Channel{}, columnName) {
+		return nil
+	}
+
+	var alterSQL string
+	if common.UsingPostgreSQL {
+		var charLen int
+		if err := DB.Raw(`SELECT COALESCE(character_maximum_length, 0) FROM information_schema.columns
+			WHERE table_schema = current_schema() AND table_name = ? AND column_name = ?`,
+			tableName, columnName).Scan(&charLen).Error; err != nil {
+			common.SysLog(fmt.Sprintf("Warning: failed to query metadata for %s.%s: %v", tableName, columnName, err))
+			return nil
+		}
+		if charLen >= 255 {
+			return nil
+		}
+		alterSQL = fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN "%s" TYPE varchar(255)`, tableName, columnName)
+	} else if common.UsingMySQL {
+		var columnType string
+		if err := DB.Raw(`SELECT COLUMN_TYPE FROM information_schema.columns
+				WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
+			tableName, columnName).Scan(&columnType).Error; err != nil {
+			common.SysLog(fmt.Sprintf("Warning: failed to query metadata for %s.%s: %v", tableName, columnName, err))
+			return nil
+		}
+		// 解析 varchar(N) 的长度
+		lower := strings.ToLower(strings.TrimSpace(columnType))
+		if strings.HasPrefix(lower, "varchar(") && strings.HasSuffix(lower, ")") {
+			numStr := lower[len("varchar(") : len(lower)-1]
+			if n, err := strconv.Atoi(numStr); err == nil && n >= 255 {
+				return nil
+			}
+		}
+		alterSQL = fmt.Sprintf("ALTER TABLE `%s` MODIFY COLUMN `%s` varchar(255) NOT NULL DEFAULT 'default'", tableName, columnName)
+	} else {
+		return nil
+	}
+
+	if alterSQL != "" {
+		if err := DB.Exec(alterSQL).Error; err != nil {
+			return fmt.Errorf("failed to migrate %s.%s to varchar(255): %w", tableName, columnName, err)
+		}
+		common.SysLog(fmt.Sprintf("Successfully migrated %s.%s to varchar(255)", tableName, columnName))
 	}
 	return nil
 }

@@ -313,6 +313,9 @@ func InitResources() error {
 	prom_metrics.Init()
 	coslog.Init()
 
+	// 初始化渠道健康状态指标
+	service.InitChannelStatusMetrics()
+
 	// 启动系统监控
 	common.StartSystemMonitor()
 

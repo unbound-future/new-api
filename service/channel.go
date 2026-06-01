@@ -47,6 +47,23 @@ func EnableChannel(channelId int, usingKey string, channelName string) {
 	}
 }
 
+// InitChannelStatusMetrics 在服务启动时初始化所有渠道的 channel_status 指标。
+// 遍历所有渠道，根据当前状态设置 Prometheus gauge。
+func InitChannelStatusMetrics() {
+	channels, err := model.GetAllChannels(0, 0, true, false)
+	if err != nil {
+		common.SysError(fmt.Sprintf("InitChannelStatusMetrics: failed to get all channels: %v", err))
+		return
+	}
+
+	for _, ch := range channels {
+		enabled := ch.Status == common.ChannelStatusEnabled
+		prom_metrics.UpdateChannelStatus(ch.Id, ch.Name, ch.Type, enabled)
+	}
+
+	common.SysLog(fmt.Sprintf("InitChannelStatusMetrics: initialized %d channels", len(channels)))
+}
+
 func ShouldDisableChannel(err *types.NewAPIError) bool {
 	if !common.AutomaticDisableChannelEnabled {
 		return false

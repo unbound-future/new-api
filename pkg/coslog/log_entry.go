@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 )
@@ -14,6 +15,11 @@ type COSLOG struct {
 	ModelName       string `json:"model_name"`
 	Url             string `json:"url"`
 	RequestID       string `json:"request_id"`
+	IsStream        bool   `json:"is_stream"`
+	StatusCode      int    `json:"status_code"`
+	ChannelId       int    `json:"channel_id"`
+	ChannelName     string `json:"channel_name"`
+	ChannelType     int    `json:"channel_type"`
 	RequestBody     string `json:"request_body"`
 	RequestHeaders  string `json:"request_headers"`
 	ResponseHeaders string `json:"response_headers"`
@@ -82,6 +88,11 @@ func Record(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) {
 		ModelName:       relayInfo.OriginModelName,
 		Url:             ctx.Request.URL.String(),
 		RequestID:       requestId,
+		IsStream:        relayInfo.IsStream,
+		StatusCode:      ctx.Writer.Status(),
+		ChannelId:       common.GetContextKeyInt(ctx, constant.ContextKeyChannelId),
+		ChannelName:     common.GetContextKeyString(ctx, constant.ContextKeyChannelName),
+		ChannelType:     common.GetContextKeyInt(ctx, constant.ContextKeyChannelType),
 		RequestBody:     reqBody,
 		RequestHeaders:  reqHeaders,
 		ResponseHeaders: respHeaders,

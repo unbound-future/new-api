@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -24,13 +25,17 @@ type captureWriter struct {
 	wrote   bool
 }
 
-// streamCaptureWriter 扩展 captureWriter，支持 stream 数据统计
+// streamCaptureWriter 扩展 captureWriter，支持 stream 数据统计和完整记录
 type streamCaptureWriter struct {
 	*captureWriter
 	chunkCount int   // stream chunk 计数
 	totalBytes int64 // stream 总字节数
 	completed  bool  // 是否收到 [DONE] 标记
 	lastChunk  []byte // 最后一个 chunk
+	// 用于累积 c.Next() 之后继续写入的数据
+	streamBody *bytes.Buffer
+	mu         sync.Mutex
+	ctx        *gin.Context // gin context 引用，用于实时更新 response_body
 }
 
 func (w *captureWriter) Write(b []byte) (int, error) {
@@ -41,8 +46,9 @@ func (w *captureWriter) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
-// Write 重写 Write 方法，统计 stream 数据
+// Write 重写 Write 方法，统计 stream 数据并完整记录
 func (w *streamCaptureWriter) Write(b []byte) (int, error) {
+	w.mu.Lock()
 	w.chunkCount++
 	w.totalBytes += int64(len(b))
 	w.lastChunk = make([]byte, len(b))
@@ -52,6 +58,17 @@ func (w *streamCaptureWriter) Write(b []byte) (int, error) {
 	if strings.Contains(string(b), "[DONE]") {
 		w.completed = true
 	}
+
+	// 累积到 streamBody 中（用于完整记录 stream 响应体）
+	if w.streamBody != nil {
+		w.streamBody.Write(b)
+	}
+
+	// 实时更新 context 中的 response_body（线程安全）
+	if w.ctx != nil {
+		w.ctx.Set(ctxKeyResponseBody, w.streamBody.String())
+	}
+	w.mu.Unlock()
 
 	return w.captureWriter.Write(b)
 }
@@ -75,16 +92,30 @@ func ResponseCaptureMiddleware() gin.HandlerFunc {
 			headers:        make(http.Header),
 		}
 
-		// 使用 streamCaptureWriter 包装 captureWriter，支持 stream 统计
+		// 使用 streamCaptureWriter 包装 captureWriter，支持 stream 统计和完整记录
 		scw := &streamCaptureWriter{
 			captureWriter: cw,
+			streamBody:    &bytes.Buffer{}, // 用于累积完整的 stream 响应体
+			ctx:           c,               // 传入 context 引用，用于实时更新
 		}
 		c.Writer = scw
 		c.Next()
 
 		hBytes, _ := common.Marshal(headersToMap(cw.headers))
-		bodyStr := cw.body.String()
 		headersStr := string(hBytes)
+
+		// 获取完整的响应体（包括 c.Next() 之后继续写入的数据）
+		// 优先使用 streamBody（累积了所有数据），否则使用 captureWriter.body
+		scw.mu.Lock()
+		var bodyStr string
+		if scw.streamBody.Len() > 0 {
+			bodyStr = scw.streamBody.String()
+		} else {
+			bodyStr = cw.body.String()
+		}
+		scw.mu.Unlock()
+
+		// 最终更新 context，确保包含完整的响应体
 		c.Set(ctxKeyResponseBody, bodyStr)
 		c.Set(ctxKeyResponseHeaders, headersStr)
 

@@ -24,6 +24,11 @@ type COSLOG struct {
 	RequestHeaders  string `json:"request_headers"`
 	ResponseHeaders string `json:"response_headers"`
 	ResponseBody    string `json:"response_body"`
+	// Stream 相关字段
+	StreamChunkCount int    `json:"stream_chunk_count,omitempty"` // stream chunk 数量
+	StreamTotalBytes int64  `json:"stream_total_bytes,omitempty"` // stream 总字节数
+	StreamCompleted  bool   `json:"stream_completed,omitempty"`   // stream 是否完成（收到 [DONE]）
+	LastStreamChunk  string `json:"last_stream_chunk,omitempty"` // 最后一个 chunk 的内容
 }
 
 const ctxKeyResponseBody = "coslog_response_body"
@@ -81,6 +86,25 @@ func Record(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) {
 		respHeaders, _ = v.(string)
 	}
 
+	// 读取 stream 元数据
+	var streamChunkCount int
+	var streamTotalBytes int64
+	var streamCompleted bool
+	var lastStreamChunk string
+
+	if v, exists := ctx.Get("coslog_stream_chunk_count"); exists {
+		streamChunkCount, _ = v.(int)
+	}
+	if v, exists := ctx.Get("coslog_stream_total_bytes"); exists {
+		streamTotalBytes, _ = v.(int64)
+	}
+	if v, exists := ctx.Get("coslog_stream_completed"); exists {
+		streamCompleted, _ = v.(bool)
+	}
+	if v, exists := ctx.Get("coslog_last_stream_chunk"); exists {
+		lastStreamChunk, _ = v.(string)
+	}
+
 	requestId := ctx.GetString(common.RequestIdKey)
 
 	entry := COSLOG{
@@ -97,6 +121,11 @@ func Record(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) {
 		RequestHeaders:  reqHeaders,
 		ResponseHeaders: respHeaders,
 		ResponseBody:    respBody,
+		// Stream 元数据
+		StreamChunkCount: streamChunkCount,
+		StreamTotalBytes: streamTotalBytes,
+		StreamCompleted:  streamCompleted,
+		LastStreamChunk:  lastStreamChunk,
 	}
 
 	defaultWriter.Write(entry)

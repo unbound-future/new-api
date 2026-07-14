@@ -24,6 +24,20 @@ const (
 	loggerDebug = "DEBUG"
 )
 
+// logLevel controls minimum log level: 0=debug, 1=info, 2=warn, 3=error
+var logLevel int
+
+func init() {
+	switch os.Getenv("LOG_LEVEL") {
+	case "warn", "warning":
+		logLevel = 2
+	case "error":
+		logLevel = 3
+	default:
+		logLevel = 1 // info
+	}
+}
+
 const maxLogCount = 1000000
 
 var logCount int
@@ -74,11 +88,15 @@ func SetupLogger() {
 }
 
 func LogInfo(ctx context.Context, msg string) {
-	logHelper(ctx, loggerINFO, msg)
+	if logLevel <= 1 {
+		logHelper(ctx, loggerINFO, msg)
+	}
 }
 
 func LogWarn(ctx context.Context, msg string) {
-	logHelper(ctx, loggerWarn, msg)
+	if logLevel <= 2 {
+		logHelper(ctx, loggerWarn, msg)
+	}
 }
 
 func LogError(ctx context.Context, msg string) {
@@ -86,7 +104,7 @@ func LogError(ctx context.Context, msg string) {
 }
 
 func LogDebug(ctx context.Context, msg string, args ...any) {
-	if common.DebugEnabled {
+	if common.DebugEnabled && logLevel == 0 {
 		if len(args) > 0 {
 			msg = fmt.Sprintf(msg, args...)
 		}

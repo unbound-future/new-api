@@ -18,6 +18,10 @@ const ctxKeyStreamTotalBytes = "coslog_stream_total_bytes"
 const ctxKeyStreamCompleted = "coslog_stream_completed"
 const ctxKeyLastStreamChunk = "coslog_last_stream_chunk"
 
+// CtxKeyBodyReader 存储一个 func() string，供 coslog/request_log 懒读 response body。
+// 读取时才做一次 buffer→string 转换，避免每个 chunk 都全量复制（O(n²) → O(n)）。
+const CtxKeyBodyReader = "coslog_body_reader"
+
 type captureWriter struct {
 	gin.ResponseWriter
 	body    *bytes.Buffer
@@ -28,14 +32,12 @@ type captureWriter struct {
 // streamCaptureWriter 扩展 captureWriter，支持 stream 数据统计和完整记录
 type streamCaptureWriter struct {
 	*captureWriter
-	chunkCount int   // stream chunk 计数
-	totalBytes int64 // stream 总字节数
-	completed  bool  // 是否收到 [DONE] 标记
+	chunkCount int    // stream chunk 计数
+	totalBytes int64  // stream 总字节数
+	completed  bool   // 是否收到 [DONE] 标记
 	lastChunk  []byte // 最后一个 chunk
-	// 用于累积 c.Next() 之后继续写入的数据
 	streamBody *bytes.Buffer
 	mu         sync.Mutex
-	ctx        *gin.Context // gin context 引用，用于实时更新 response_body
 }
 
 func (w *captureWriter) Write(b []byte) (int, error) {
@@ -46,7 +48,9 @@ func (w *captureWriter) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
-// Write 重写 Write 方法，统计 stream 数据并完整记录
+// Write 重写 Write 方法，统计 stream 数据并完整记录。
+// 不在每个 chunk 时转换 buffer→string（O(n²) 的内存复制），
+// 而是通过 CtxKeyBodyReader 存储懒读函数，由调用方按需转换一次（O(n)）。
 func (w *streamCaptureWriter) Write(b []byte) (int, error) {
 	w.mu.Lock()
 	w.chunkCount++
@@ -54,19 +58,12 @@ func (w *streamCaptureWriter) Write(b []byte) (int, error) {
 	w.lastChunk = make([]byte, len(b))
 	copy(w.lastChunk, b)
 
-	// 检测 stream 是否完成（[DONE] 标记）
 	if strings.Contains(string(b), "[DONE]") {
 		w.completed = true
 	}
 
-	// 累积到 streamBody 中（用于完整记录 stream 响应体）
 	if w.streamBody != nil {
 		w.streamBody.Write(b)
-	}
-
-	// 实时更新 context 中的 response_body（线程安全）
-	if w.ctx != nil {
-		w.ctx.Set(ctxKeyResponseBody, w.streamBody.String())
 	}
 	w.mu.Unlock()
 
@@ -92,13 +89,20 @@ func ResponseCaptureMiddleware() gin.HandlerFunc {
 			headers:        make(http.Header),
 		}
 
-		// 使用 streamCaptureWriter 包装 captureWriter，支持 stream 统计和完整记录
 		scw := &streamCaptureWriter{
 			captureWriter: cw,
-			streamBody:    &bytes.Buffer{}, // 用于累积完整的 stream 响应体
-			ctx:           c,               // 传入 context 引用，用于实时更新
+			streamBody:    &bytes.Buffer{},
 		}
 		c.Writer = scw
+
+		// 存储懒读函数：读取时才做一次 buffer→string，避免每个 chunk 全量复制。
+		// bytes.Buffer.String() 是只读快照，多次调用安全，不消耗数据。
+		c.Set(CtxKeyBodyReader, func() string {
+			scw.mu.Lock()
+			defer scw.mu.Unlock()
+			return scw.streamBody.String()
+		})
+
 		c.Next()
 
 		hBytes, _ := common.Marshal(headersToMap(cw.headers))

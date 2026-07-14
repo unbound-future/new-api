@@ -79,8 +79,16 @@ func Record(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) {
 	}
 
 	var respBody, respHeaders string
-	if v, exists := ctx.Get(ctxKeyResponseBody); exists {
-		respBody, _ = v.(string)
+	// 优先通过懒读函数获取 body（O(n) 一次转换），回退到已物化的 string
+	if v, exists := ctx.Get("coslog_body_reader"); exists {
+		if bodyFn, ok := v.(func() string); ok {
+			respBody = bodyFn()
+		}
+	}
+	if respBody == "" {
+		if v, exists := ctx.Get(ctxKeyResponseBody); exists {
+			respBody, _ = v.(string)
+		}
 	}
 	if v, exists := ctx.Get(ctxKeyResponseHeaders); exists {
 		respHeaders, _ = v.(string)

@@ -84,9 +84,19 @@ func recordRequestLog(c *gin.Context, logId int, userId int, username string, mo
 		url = c.Request.URL.String()
 	}
 
-	respBody, _ := c.Get(ctxKeyResponseBody)
+	// 优先通过懒读函数获取 body（O(n) 一次转换），回退到已物化的 string
+	var respBodyStr string
+	if v, exists := c.Get("coslog_body_reader"); exists {
+		if bodyFn, ok := v.(func() string); ok {
+			respBodyStr = bodyFn()
+		}
+	}
+	if respBodyStr == "" {
+		if v, exists := c.Get(ctxKeyResponseBody); exists {
+			respBodyStr, _ = v.(string)
+		}
+	}
 	respHeaders, _ := c.Get(ctxKeyResponseHeaders)
-	respBodyStr, _ := respBody.(string)
 	respHeadersStr, _ := respHeaders.(string)
 
 	rl := &RequestLog{

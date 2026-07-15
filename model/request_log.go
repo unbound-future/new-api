@@ -75,7 +75,7 @@ func extractRequestHeaders(c *gin.Context) string {
 }
 
 func recordRequestLog(c *gin.Context, logId int, userId int, username string, modelName string, createdAt int64, requestId string) {
-	if c == nil || logId <= 0 {
+	if !common.RequestLogEnabled || c == nil || logId <= 0 {
 		return
 	}
 
@@ -129,7 +129,7 @@ func recordRequestLog(c *gin.Context, logId int, userId int, username string, mo
 // FlushRequestLogResponses 在请求完成后被调用（来自 ResponseCaptureMiddleware），
 // 把本次请求采集到的响应 body / headers 写回到对应的 request_logs 行。
 func FlushRequestLogResponses(c *gin.Context, responseHeaders string, responseBody string) {
-	if c == nil {
+	if !common.RequestLogEnabled || c == nil {
 		return
 	}
 	v, exists := c.Get(ctxKeyRequestLogIds)

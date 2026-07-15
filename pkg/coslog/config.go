@@ -4,6 +4,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 type Config struct {
@@ -24,7 +26,7 @@ type Config struct {
 
 func LoadConfig() Config {
 	cfg := Config{
-		Enabled:           os.Getenv("COSLOG_ENABLED") == "true",
+		Enabled:           common.CosLogEnabled,
 		StorageType:       os.Getenv("COSLOG_STORAGE_TYPE"),
 		Bucket:            os.Getenv("OSS_BUCKET"),
 		Region:            os.Getenv("OSS_REGION"),

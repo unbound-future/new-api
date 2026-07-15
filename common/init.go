@@ -100,6 +100,7 @@ func InitEnv() {
 	MemoryCacheEnabled = os.Getenv("MEMORY_CACHE_ENABLED") == "true"
 	IsMasterNode = os.Getenv("NODE_TYPE") != "slave"
 	NodeName = os.Getenv("NODE_NAME")
+	initLoggingFlags()
 	TLSInsecureSkipVerify = GetEnvOrDefaultBool("TLS_INSECURE_SKIP_VERIFY", false)
 	if TLSInsecureSkipVerify {
 		if tr, ok := http.DefaultTransport.(*http.Transport); ok && tr != nil {
@@ -143,6 +144,11 @@ func InitEnv() {
 	SearchRateLimitNum = GetEnvOrDefault("SEARCH_RATE_LIMIT", 10)
 	SearchRateLimitDuration = int64(GetEnvOrDefault("SEARCH_RATE_LIMIT_DURATION", 60))
 	initConstantEnv()
+}
+
+func initLoggingFlags() {
+	CosLogEnabled = GetEnvOrDefaultBool("COSLOG_ENABLED", false)
+	RequestLogEnabled = GetEnvOrDefaultBool("REQUEST_LOG_ENABLED", true)
 }
 
 func initConstantEnv() {

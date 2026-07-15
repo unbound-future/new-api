@@ -88,6 +88,7 @@ func InitEnv() {
 	MemoryCacheEnabled = os.Getenv("MEMORY_CACHE_ENABLED") == "true"
 	IsMasterNode = os.Getenv("NODE_TYPE") != "slave"
 	initNodeNameIdentity()
+	initLoggingFlags()
 	TLSInsecureSkipVerify = GetEnvOrDefaultBool("TLS_INSECURE_SKIP_VERIFY", false)
 	if TLSInsecureSkipVerify {
 		if tr, ok := http.DefaultTransport.(*http.Transport); ok && tr != nil {
@@ -171,6 +172,11 @@ func positiveUserSessionEnv(name string, fallback int) int {
 		return fallback
 	}
 	return value
+}
+
+func initLoggingFlags() {
+	CosLogEnabled = GetEnvOrDefaultBool("COSLOG_ENABLED", false)
+	RequestLogEnabled = GetEnvOrDefaultBool("REQUEST_LOG_ENABLED", true)
 }
 
 func initConstantEnv() {

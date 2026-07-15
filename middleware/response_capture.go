@@ -83,6 +83,11 @@ func (w *captureWriter) WriteHeader(code int) {
 
 func ResponseCaptureMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if !common.CosLogEnabled && !common.RequestLogEnabled {
+			c.Next()
+			return
+		}
+
 		cw := &captureWriter{
 			ResponseWriter: c.Writer,
 			body:           &bytes.Buffer{},

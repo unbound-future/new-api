@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
 )
 
@@ -44,5 +45,45 @@ func TestResponseCaptureMiddleware(t *testing.T) {
 	}
 	if !strings.Contains(headers.(string), "X-Test") {
 		t.Fatalf("expected headers to contain X-Test: %v", headers)
+	}
+}
+
+func TestResponseCaptureMiddlewareFlagMatrix(t *testing.T) {
+	tests := []struct {
+		name       string
+		coslog     bool
+		requestLog bool
+		captured   bool
+	}{
+		{name: "both enabled", coslog: true, requestLog: true, captured: true},
+		{name: "request log only", coslog: false, requestLog: true, captured: true},
+		{name: "coslog only", coslog: true, requestLog: false, captured: true},
+		{name: "both disabled", coslog: false, requestLog: false, captured: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oldCoslog := common.CosLogEnabled
+			oldRequestLog := common.RequestLogEnabled
+			common.CosLogEnabled = tt.coslog
+			common.RequestLogEnabled = tt.requestLog
+			t.Cleanup(func() {
+				common.CosLogEnabled = oldCoslog
+				common.RequestLogEnabled = oldRequestLog
+			})
+
+			var captured bool
+			router := gin.New()
+			router.Use(ResponseCaptureMiddleware())
+			router.GET("/", func(c *gin.Context) {
+				_, captured = c.Writer.(*streamCaptureWriter)
+				c.Status(http.StatusNoContent)
+			})
+
+			router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/", nil))
+			if captured != tt.captured {
+				t.Fatalf("captured=%t, want %t", captured, tt.captured)
+			}
+		})
 	}
 }

@@ -28,7 +28,7 @@ type COSLOG struct {
 	StreamChunkCount int    `json:"stream_chunk_count,omitempty"` // stream chunk 数量
 	StreamTotalBytes int64  `json:"stream_total_bytes,omitempty"` // stream 总字节数
 	StreamCompleted  bool   `json:"stream_completed,omitempty"`   // stream 是否完成（收到 [DONE]）
-	LastStreamChunk  string `json:"last_stream_chunk,omitempty"` // 最后一个 chunk 的内容
+	LastStreamChunk  string `json:"last_stream_chunk,omitempty"`  // 最后一个 chunk 的内容
 }
 
 const ctxKeyResponseBody = "coslog_response_body"
@@ -38,6 +38,9 @@ const CtxKeyRequestBody = "coslog_request_body"
 const CtxKeyRequestHeaders = "coslog_request_headers"
 
 func PrepareContext(ctx *gin.Context) {
+	if !common.CosLogEnabled || ctx == nil {
+		return
+	}
 	if bs, err := common.GetRequestBody(ctx); err == nil {
 		if b, err := io.ReadAll(bs.(io.Reader)); err == nil {
 			ctx.Set(CtxKeyRequestBody, string(b))
@@ -49,7 +52,7 @@ func PrepareContext(ctx *gin.Context) {
 }
 
 func Record(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) {
-	if defaultWriter == nil || ctx == nil {
+	if !common.CosLogEnabled || defaultWriter == nil || ctx == nil {
 		return
 	}
 	defer func() {

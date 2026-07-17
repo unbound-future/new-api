@@ -46,7 +46,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { DateTimePicker } from '@/components/datetime-picker'
-import { deleteLogsBefore, getCosLogStatus } from '../api'
+import { deleteLogsBefore, getCosLogStatus, resetCosLogDropped } from '../api'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import type { CosLogStatus } from '../types'
@@ -113,6 +113,7 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
   const updateOption = useUpdateOption()
   const [cosLogStatus, setCosLogStatus] = useState<CosLogStatus | null>(null)
   const [cosLogStatusUnavailable, setCosLogStatusUnavailable] = useState(false)
+  const [isResettingDropped, setIsResettingDropped] = useState(false)
   const form = useForm<LogSettingsFormValues>({
     resolver: zodResolver(logSettingsSchema),
     defaultValues: {
@@ -201,6 +202,24 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
     }
 
     setShowConfirmDialog(true)
+  }
+
+  const handleResetDropped = async () => {
+    setIsResettingDropped(true)
+    try {
+      const response = await resetCosLogDropped()
+      if (!response.success) throw new Error(response.message)
+      toast.success(t('Dropped count cleared'))
+      await refreshCosLogStatus()
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : t('Failed to clear dropped count')
+      toast.error(message)
+    } finally {
+      setIsResettingDropped(false)
+    }
   }
 
   const handleCleanLogs = async () => {
@@ -375,6 +394,18 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
                   <div className='font-medium'>
                     {cosLogStatus.dropped_total}
                   </div>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    className='mt-2'
+                    disabled={
+                      isResettingDropped || cosLogStatus.dropped_total === 0
+                    }
+                    onClick={handleResetDropped}
+                  >
+                    {isResettingDropped ? t('Clearing...') : t('Clear')}
+                  </Button>
                 </div>
               </div>
             ) : null}

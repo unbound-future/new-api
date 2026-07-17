@@ -3833,6 +3833,9 @@
     "本地占用": "Local usage",
     "最近成功上传": "Last successful upload",
     "丢弃数量": "Dropped",
+    "丢弃数量已清空": "Dropped count cleared",
+    "清空丢弃数量失败": "Failed to clear dropped count",
+    "清空": "Clear",
     "从未": "Never",
     "，": ", ",
     "、": ", "

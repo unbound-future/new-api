@@ -34,6 +34,10 @@ func recordDropped() {
 	droppedTotal.Add(1)
 }
 
+func ResetDroppedTotal() uint64 {
+	return droppedTotal.Swap(0)
+}
+
 func recordUploadSuccess() {
 	lastSuccessfulUpload.Store(time.Now().Unix())
 }

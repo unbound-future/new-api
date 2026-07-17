@@ -59,6 +59,11 @@ export async function getCosLogStatus() {
   return res.data
 }
 
+export async function resetCosLogDropped() {
+  const res = await api.post<UpdateOptionResponse>('/api/coslog/reset-dropped')
+  return res.data
+}
+
 export async function resetModelRatios() {
   const res = await api.post<UpdateOptionResponse>(
     '/api/option/rest_model_ratio'

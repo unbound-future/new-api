@@ -191,6 +191,7 @@ func SetApiRouter(router *gin.Engine) {
 		cosLogRoute.Use(middleware.RootAuth())
 		{
 			cosLogRoute.GET("/status", controller.GetCosLogStatus)
+			cosLogRoute.POST("/reset-dropped", controller.ResetCosLogDropped)
 		}
 
 		// Custom OAuth provider management (root only)

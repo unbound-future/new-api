@@ -66,6 +66,7 @@ export default function SettingsLog(props) {
   });
   const [cosLogStatus, setCosLogStatus] = useState(null);
   const [cosLogStatusUnavailable, setCosLogStatusUnavailable] = useState(false);
+  const [resettingDropped, setResettingDropped] = useState(false);
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
 
@@ -206,6 +207,20 @@ export default function SettingsLog(props) {
       setCosLogStatusUnavailable(false);
     } catch {
       setCosLogStatusUnavailable(true);
+    }
+  }
+
+  async function resetCosLogDropped() {
+    setResettingDropped(true);
+    try {
+      const res = await API.post('/api/coslog/reset-dropped');
+      if (!res.data.success) throw new Error(res.data.message);
+      showSuccess(t('丢弃数量已清空'));
+      await fetchCosLogStatus();
+    } catch (error) {
+      showError(error.message || t('清空丢弃数量失败'));
+    } finally {
+      setResettingDropped(false);
     }
   }
 
@@ -381,7 +396,25 @@ export default function SettingsLog(props) {
                     },
                     {
                       key: t('丢弃数量'),
-                      value: cosLogStatus.dropped_total,
+                      value: (
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                          }}
+                        >
+                          <span>{cosLogStatus.dropped_total}</span>
+                          <Button
+                            size='small'
+                            loading={resettingDropped}
+                            disabled={cosLogStatus.dropped_total === 0}
+                            onClick={resetCosLogDropped}
+                          >
+                            {t('清空')}
+                          </Button>
+                        </div>
+                      ),
                     },
                   ]}
                 />

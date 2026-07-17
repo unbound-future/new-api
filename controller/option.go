@@ -146,6 +146,14 @@ func UpdateOption(c *gin.Context) {
 	default:
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
+	if option.Key == common.CosLogSamplePercentOption {
+		basisPoints, parseErr := common.ParseCosLogSamplePercent(option.Value.(string))
+		if parseErr != nil {
+			common.ApiErrorMsg(c, parseErr.Error())
+			return
+		}
+		option.Value = common.FormatCosLogSamplePercent(basisPoints)
+	}
 	switch option.Key {
 	case "QuotaForInviter", "QuotaForInvitee":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {

@@ -56,6 +56,30 @@ export type DeleteLogsResponse = {
   data?: number
 }
 
+export type CosLogStatus = {
+  enabled: boolean
+  initialized: boolean
+  uploader_ready: boolean
+  storage_type: string
+  sample_percent: number
+  queue_depth: number
+  queue_capacity: number
+  buffered_entries: number
+  local_dir: string
+  local_bytes: number
+  last_successful_upload: number
+  dropped_total: number
+  flush_size: number
+  flush_interval_seconds: number
+  max_file_size: number
+}
+
+export type CosLogStatusResponse = {
+  success: boolean
+  message: string
+  data: CosLogStatus
+}
+
 export type SiteSettings = {
   'theme.frontend': string
   Notice: string
@@ -300,6 +324,7 @@ export type OperationsSettings = {
   WorkerValidKey: string
   WorkerAllowHttpImageRequestEnabled: boolean
   LogConsumeEnabled: boolean
+  CosLogSamplePercent: number
   'performance_setting.disk_cache_enabled': boolean
   'performance_setting.disk_cache_threshold_mb': number
   'performance_setting.disk_cache_max_size_mb': number

@@ -19,8 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useState, useRef } from 'react';
 import {
+  Banner,
   Button,
   Col,
+  Descriptions,
   Form,
   Row,
   Spin,
@@ -39,6 +41,19 @@ import {
 } from '../../../helpers';
 
 const { Text } = Typography;
+const COSLOG_STATUS_REFRESH_MS = 5000;
+const COSLOG_SAMPLE_PRESETS = [0, 1, 10, 25, 50, 100];
+
+function formatBytes(bytes, decimals = 2) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const unitIndex = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1,
+  );
+  const value = bytes / Math.pow(1024, unitIndex);
+  return `${value.toFixed(unitIndex === 0 ? 0 : decimals)} ${units[unitIndex]}`;
+}
 
 export default function SettingsLog(props) {
   const { t } = useTranslation();
@@ -46,8 +61,11 @@ export default function SettingsLog(props) {
   const [loadingCleanHistoryLog, setLoadingCleanHistoryLog] = useState(false);
   const [inputs, setInputs] = useState({
     LogConsumeEnabled: false,
+    CosLogSamplePercent: 100,
     historyTimestamp: dayjs().subtract(1, 'month').toDate(),
   });
+  const [cosLogStatus, setCosLogStatus] = useState(null);
+  const [cosLogStatusUnavailable, setCosLogStatusUnavailable] = useState(false);
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
 
@@ -80,6 +98,7 @@ export default function SettingsLog(props) {
         }
         showSuccess(t('保存成功'));
         props.refresh();
+        fetchCosLogStatus();
       })
       .catch(() => {
         showError(t('保存失败，请重试'));
@@ -179,11 +198,26 @@ export default function SettingsLog(props) {
     });
   }
 
+  async function fetchCosLogStatus() {
+    try {
+      const res = await API.get('/api/coslog/status');
+      if (!res.data.success) throw new Error(res.data.message);
+      setCosLogStatus(res.data.data);
+      setCosLogStatusUnavailable(false);
+    } catch {
+      setCosLogStatusUnavailable(true);
+    }
+  }
+
   useEffect(() => {
     const currentInputs = {};
     for (let key in props.options) {
       if (Object.keys(inputs).includes(key)) {
-        currentInputs[key] = props.options[key];
+        if (key === 'CosLogSamplePercent') {
+          currentInputs[key] = Number(props.options[key]);
+        } else {
+          currentInputs[key] = props.options[key];
+        }
       }
     }
     currentInputs['historyTimestamp'] = inputs.historyTimestamp;
@@ -191,6 +225,23 @@ export default function SettingsLog(props) {
     setInputsRow(structuredClone(currentInputs));
     refForm.current.setValues(currentInputs);
   }, [props.options]);
+
+  useEffect(() => {
+    fetchCosLogStatus();
+    const timer = window.setInterval(
+      fetchCosLogStatus,
+      COSLOG_STATUS_REFRESH_MS,
+    );
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const cosLogInactive = !cosLogStatus?.enabled || !cosLogStatus?.initialized;
+  const lastUploadText = cosLogStatus?.last_successful_upload
+    ? dayjs
+        .unix(cosLogStatus.last_successful_upload)
+        .format('YYYY-MM-DD HH:mm:ss')
+    : t('从未');
+
   return (
     <>
       <Spin spinning={loading}>
@@ -247,6 +298,95 @@ export default function SettingsLog(props) {
                 </Spin>
               </Col>
             </Row>
+
+            <div style={{ marginTop: 20 }}>
+              <Banner
+                type='info'
+                description={t(
+                  '按稳定比例保存完整请求和响应内容，修改后无需重启即可生效。0% 不保存，100% 保存所有符合现有 COSLOG 条件的请求。',
+                )}
+                style={{ marginBottom: 16 }}
+              />
+              {cosLogStatusUnavailable && (
+                <Banner
+                  type='danger'
+                  description={t('无法读取 COSLOG 运行状态')}
+                  style={{ marginBottom: 16 }}
+                />
+              )}
+              {cosLogStatus && cosLogInactive && (
+                <Banner
+                  type='warning'
+                  description={t(
+                    'COSLOG 未启用或启动时未初始化。现在可以先保存比例，但只有设置 COSLOG_ENABLED=true 并重启后才会开始采集。',
+                  )}
+                  style={{ marginBottom: 16 }}
+                />
+              )}
+              <Row gutter={16}>
+                <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                  <Form.InputNumber
+                    field={'CosLogSamplePercent'}
+                    label={t('COSLOG 完整内容采样比例 (%)')}
+                    extraText={t('支持 0 至 100，最多两位小数')}
+                    min={0}
+                    max={100}
+                    step={0.01}
+                    onChange={(value) => {
+                      setInputs({
+                        ...inputs,
+                        CosLogSamplePercent: value,
+                      });
+                    }}
+                  />
+                </Col>
+              </Row>
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                  marginBottom: 16,
+                }}
+              >
+                {COSLOG_SAMPLE_PRESETS.map((percent) => (
+                  <Button
+                    key={percent}
+                    size='small'
+                    theme='borderless'
+                    onClick={() => {
+                      setInputs({ ...inputs, CosLogSamplePercent: percent });
+                      refForm.current.setValue('CosLogSamplePercent', percent);
+                    }}
+                  >
+                    {percent}%
+                  </Button>
+                ))}
+              </div>
+              {cosLogStatus && (
+                <Descriptions
+                  row
+                  data={[
+                    {
+                      key: t('队列深度'),
+                      value: `${cosLogStatus.queue_depth} / ${cosLogStatus.queue_capacity}（${t('缓冲')} ${cosLogStatus.buffered_entries} / ${cosLogStatus.flush_size}）`,
+                    },
+                    {
+                      key: t('本地占用'),
+                      value: formatBytes(cosLogStatus.local_bytes),
+                    },
+                    {
+                      key: t('最近成功上传'),
+                      value: lastUploadText,
+                    },
+                    {
+                      key: t('丢弃数量'),
+                      value: cosLogStatus.dropped_total,
+                    },
+                  ]}
+                />
+              )}
+            </div>
 
             <Row>
               <Button size='default' onClick={onSubmit}>

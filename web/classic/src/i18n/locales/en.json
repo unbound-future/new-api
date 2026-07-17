@@ -3823,6 +3823,17 @@
     "知悉相关法律风险": "acknowledge the related legal risks",
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
+    "按稳定比例保存完整请求和响应内容，修改后无需重启即可生效。0% 不保存，100% 保存所有符合现有 COSLOG 条件的请求。": "Store complete request and response payloads for a stable percentage of requests. Changes take effect without restarting. 0% stores none; 100% stores every eligible request.",
+    "无法读取 COSLOG 运行状态": "Unable to load COSLOG status",
+    "COSLOG 未启用或启动时未初始化。现在可以先保存比例，但只有设置 COSLOG_ENABLED=true 并重启后才会开始采集。": "COSLOG is disabled or was not initialized at startup. You can save a percentage now, but capture starts only after enabling COSLOG_ENABLED and restarting.",
+    "COSLOG 完整内容采样比例 (%)": "COSLOG payload sample percentage (%)",
+    "支持 0 至 100，最多两位小数": "Supports 0 to 100 with at most two decimal places",
+    "队列深度": "Queue depth",
+    "缓冲": "Buffered",
+    "本地占用": "Local usage",
+    "最近成功上传": "Last successful upload",
+    "丢弃数量": "Dropped",
+    "从未": "Never",
     "，": ", ",
     "、": ", "
   }

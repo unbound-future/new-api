@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -43,23 +43,36 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { DateTimePicker } from '@/components/datetime-picker'
-import { deleteLogsBefore } from '../api'
+import { deleteLogsBefore, getCosLogStatus } from '../api'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import type { CosLogStatus } from '../types'
 
 const logSettingsSchema = z.object({
   LogConsumeEnabled: z.boolean(),
+  CosLogSamplePercent: z
+    .number()
+    .min(0)
+    .max(100)
+    .refine(
+      (value) => Math.abs(value * 100 - Math.round(value * 100)) < 0.000001,
+      { message: 'Use at most two decimal places.' }
+    ),
 })
 
 type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
 
 type LogSettingsSectionProps = {
   defaultEnabled: boolean
+  defaultSamplePercent: number
 }
 
 const HOURS_IN_DAY = 24
+const COSLOG_STATUS_REFRESH_MS = 5000
+const COSLOG_SAMPLE_PRESETS = [0, 1, 10, 25, 50, 100]
 
 const getDateHoursAgo = (hours: number) => {
   const date = new Date()
@@ -84,15 +97,27 @@ const quickSelectOptions = [
   },
 ]
 
-export function LogSettingsSection({
-  defaultEnabled,
-}: LogSettingsSectionProps) {
+const formatBytes = (bytes: number) => {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const unitIndex = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1
+  )
+  const value = bytes / 1024 ** unitIndex
+  return `${value.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`
+}
+
+export function LogSettingsSection(props: LogSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const [cosLogStatus, setCosLogStatus] = useState<CosLogStatus | null>(null)
+  const [cosLogStatusUnavailable, setCosLogStatusUnavailable] = useState(false)
   const form = useForm<LogSettingsFormValues>({
     resolver: zodResolver(logSettingsSchema),
     defaultValues: {
-      LogConsumeEnabled: defaultEnabled,
+      LogConsumeEnabled: props.defaultEnabled,
+      CosLogSamplePercent: props.defaultSamplePercent,
     },
   })
 
@@ -103,8 +128,31 @@ export function LogSettingsSection({
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
   useEffect(() => {
-    form.reset({ LogConsumeEnabled: defaultEnabled })
-  }, [defaultEnabled, form])
+    form.reset({
+      LogConsumeEnabled: props.defaultEnabled,
+      CosLogSamplePercent: props.defaultSamplePercent,
+    })
+  }, [form, props.defaultEnabled, props.defaultSamplePercent])
+
+  const refreshCosLogStatus = useCallback(async () => {
+    try {
+      const response = await getCosLogStatus()
+      if (!response.success) throw new Error(response.message)
+      setCosLogStatus(response.data)
+      setCosLogStatusUnavailable(false)
+    } catch {
+      setCosLogStatusUnavailable(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshCosLogStatus()
+    const timer = window.setInterval(
+      () => void refreshCosLogStatus(),
+      COSLOG_STATUS_REFRESH_MS
+    )
+    return () => window.clearInterval(timer)
+  }, [refreshCosLogStatus])
 
   const purgeTimestamp = useMemo(() => {
     if (!purgeDate) return null
@@ -117,12 +165,34 @@ export function LogSettingsSection({
   }, [purgeDate])
 
   const onSubmit = async (values: LogSettingsFormValues) => {
-    if (values.LogConsumeEnabled === defaultEnabled) return
-    await updateOption.mutateAsync({
-      key: 'LogConsumeEnabled',
-      value: values.LogConsumeEnabled,
-    })
+    const updates: Array<{ key: string; value: boolean | number }> = []
+    if (values.LogConsumeEnabled !== props.defaultEnabled) {
+      updates.push({
+        key: 'LogConsumeEnabled',
+        value: values.LogConsumeEnabled,
+      })
+    }
+    if (values.CosLogSamplePercent !== props.defaultSamplePercent) {
+      updates.push({
+        key: 'CosLogSamplePercent',
+        value: values.CosLogSamplePercent,
+      })
+    }
+    if (updates.length === 0) {
+      toast.info(t('No changes to save'))
+      return
+    }
+    for (const update of updates) {
+      await updateOption.mutateAsync(update)
+    }
+    await refreshCosLogStatus()
   }
+
+  const cosLogInactive = !cosLogStatus?.enabled || !cosLogStatus.initialized
+
+  const lastUploadText = cosLogStatus?.last_successful_upload
+    ? new Date(cosLogStatus.last_successful_upload * 1000).toLocaleString()
+    : t('Never')
 
   const handleRequestCleanLogs = () => {
     if (!purgeTimestamp) {
@@ -192,6 +262,123 @@ export function LogSettingsSection({
               </FormItem>
             )}
           />
+
+          <div className='space-y-4 rounded-lg border p-4'>
+            <div>
+              <h4 className='text-sm font-medium'>
+                {t('COSLOG payload sampling')}
+              </h4>
+              <p className='text-muted-foreground text-sm'>
+                {t(
+                  'Store complete request and response payloads for a stable percentage of requests. Changes take effect without restarting.'
+                )}
+              </p>
+            </div>
+
+            {cosLogStatusUnavailable ? (
+              <p className='text-destructive text-sm'>
+                {t('Unable to load COSLOG status.')}
+              </p>
+            ) : null}
+
+            {cosLogStatus && cosLogInactive ? (
+              <p className='text-muted-foreground bg-muted rounded-md p-3 text-sm'>
+                {t(
+                  'COSLOG is disabled or was not initialized at startup. You can save a percentage now, but capture starts only after COSLOG_ENABLED is enabled and the service is restarted.'
+                )}
+              </p>
+            ) : null}
+
+            <FormField
+              control={form.control}
+              name='CosLogSamplePercent'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Payload sample percentage')}</FormLabel>
+                  <div className='flex max-w-xs items-center gap-2'>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min={0}
+                        max={100}
+                        step={0.01}
+                        name={field.name}
+                        ref={field.ref}
+                        value={field.value}
+                        onBlur={field.onBlur}
+                        onChange={(event) =>
+                          field.onChange(event.target.valueAsNumber)
+                        }
+                      />
+                    </FormControl>
+                    <span className='text-muted-foreground'>%</span>
+                  </div>
+                  <FormDescription>
+                    {t(
+                      '0% stores none; 100% stores every eligible request. Selected records keep their complete current COSLOG payload.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className='flex flex-wrap gap-2'>
+              {COSLOG_SAMPLE_PRESETS.map((percent) => (
+                <Button
+                  key={percent}
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  onClick={() =>
+                    form.setValue('CosLogSamplePercent', percent, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                >
+                  {percent}%
+                </Button>
+              ))}
+            </div>
+
+            {cosLogStatus ? (
+              <div className='grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4'>
+                <div className='bg-muted rounded-md p-3'>
+                  <div className='text-muted-foreground'>
+                    {t('Queue depth')}
+                  </div>
+                  <div className='font-medium'>
+                    {cosLogStatus.queue_depth} / {cosLogStatus.queue_capacity}
+                  </div>
+                  <div className='text-muted-foreground text-xs'>
+                    {t('Buffered')}: {cosLogStatus.buffered_entries} /{' '}
+                    {cosLogStatus.flush_size}
+                  </div>
+                </div>
+                <div className='bg-muted rounded-md p-3'>
+                  <div className='text-muted-foreground'>
+                    {t('Local usage')}
+                  </div>
+                  <div className='font-medium'>
+                    {formatBytes(cosLogStatus.local_bytes)}
+                  </div>
+                </div>
+                <div className='bg-muted rounded-md p-3'>
+                  <div className='text-muted-foreground'>
+                    {t('Last successful upload')}
+                  </div>
+                  <div className='font-medium'>{lastUploadText}</div>
+                </div>
+                <div className='bg-muted rounded-md p-3'>
+                  <div className='text-muted-foreground'>{t('Dropped')}</div>
+                  <div className='font-medium'>
+                    {cosLogStatus.dropped_total}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
 
           <div className='space-y-4 rounded-lg border p-4'>
             <div>

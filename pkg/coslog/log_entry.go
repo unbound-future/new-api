@@ -38,7 +38,7 @@ const CtxKeyRequestBody = "coslog_request_body"
 const CtxKeyRequestHeaders = "coslog_request_headers"
 
 func PrepareContext(ctx *gin.Context) {
-	if !common.CosLogEnabled || ctx == nil {
+	if !IsSampled(ctx) {
 		return
 	}
 	if bs, err := common.GetRequestBody(ctx); err == nil {
@@ -52,7 +52,11 @@ func PrepareContext(ctx *gin.Context) {
 }
 
 func Record(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) {
-	if !common.CosLogEnabled || defaultWriter == nil || ctx == nil {
+	if !IsSampled(ctx) {
+		return
+	}
+	if defaultWriter == nil {
+		recordDropped()
 		return
 	}
 	defer func() {

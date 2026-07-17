@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/coslog"
 	"github.com/gin-gonic/gin"
 )
 
@@ -83,7 +84,8 @@ func (w *captureWriter) WriteHeader(code int) {
 
 func ResponseCaptureMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !common.CosLogEnabled && !common.RequestLogEnabled {
+		cosLogSampled := coslog.DecideForContext(c)
+		if !cosLogSampled && !common.RequestLogEnabled {
 			c.Next()
 			return
 		}

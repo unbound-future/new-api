@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"strconv"
 	"strings"
 	"time"
@@ -47,6 +48,7 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
 	common.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(common.LogConsumeEnabled)
+	common.OptionMap[common.CosLogSamplePercentOption] = common.FormatCosLogSamplePercent(common.GetCosLogSampleBasisPoints())
 	common.OptionMap["DisplayInCurrencyEnabled"] = strconv.FormatBool(common.DisplayInCurrencyEnabled)
 	common.OptionMap["DisplayTokenStatEnabled"] = strconv.FormatBool(common.DisplayTokenStatEnabled)
 	common.OptionMap["DrawingEnabled"] = strconv.FormatBool(common.DrawingEnabled)
@@ -208,22 +210,47 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	if key == common.CosLogSamplePercentOption {
+		basisPoints, err := common.ParseCosLogSamplePercent(value)
+		if err != nil {
+			return err
+		}
+		value = common.FormatCosLogSamplePercent(basisPoints)
+	}
 	// Save to database first
 	option := Option{
 		Key: key,
 	}
 	// https://gorm.io/docs/update.html#Save-All-Fields
-	DB.FirstOrCreate(&option, Option{Key: key})
+	if err := DB.FirstOrCreate(&option, Option{Key: key}).Error; err != nil {
+		return err
+	}
 	option.Value = value
 	// Save is a combination function.
 	// If save value does not contain primary key, it will execute Create,
 	// otherwise it will execute Update (with all fields).
-	DB.Save(&option)
+	if err := DB.Save(&option).Error; err != nil {
+		return err
+	}
 	// Update OptionMap
-	return updateOptionMap(key, value)
+	if err := updateOptionMap(key, value); err != nil {
+		return err
+	}
+	if key == common.CosLogSamplePercentOption && common.RedisEnabled && common.RDB != nil {
+		if err := common.RDB.Publish(context.Background(), common.CosLogSampleRedisChannel, value).Err(); err != nil {
+			common.SysLog("failed to publish COSLOG sample percent update: " + err.Error())
+		}
+	}
+	return nil
 }
 
 func updateOptionMap(key string, value string) (err error) {
+	if key == common.CosLogSamplePercentOption {
+		if err = common.SetCosLogSamplePercent(value); err != nil {
+			return err
+		}
+		value = common.FormatCosLogSamplePercent(common.GetCosLogSampleBasisPoints())
+	}
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
 	common.OptionMap[key] = value
@@ -333,6 +360,8 @@ func updateOptionMap(key string, value string) (err error) {
 		}
 	}
 	switch key {
+	case common.CosLogSamplePercentOption:
+		// Parsed and atomically applied before taking OptionMapRWMutex.
 	case "EmailDomainWhitelist":
 		common.EmailDomainWhitelist = strings.Split(value, ",")
 	case "SMTPServer":

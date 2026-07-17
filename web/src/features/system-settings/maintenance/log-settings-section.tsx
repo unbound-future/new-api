@@ -67,6 +67,7 @@ import {
   getCosLogStatus,
   getCurrentLogCleanupTask,
   getSystemTask,
+  resetCosLogDropped,
   startLogCleanupTask,
 } from '../api'
 import {
@@ -180,6 +181,7 @@ export function LogSettingsSection({
   const [serverLogCleanupLoading, setServerLogCleanupLoading] = useState(false)
   const [cosLogStatus, setCosLogStatus] = useState<CosLogStatus | null>(null)
   const [cosLogStatusUnavailable, setCosLogStatusUnavailable] = useState(false)
+  const [isResettingDropped, setIsResettingDropped] = useState(false)
 
   const fetchServerLogInfo = useCallback(async () => {
     try {
@@ -325,6 +327,24 @@ export function LogSettingsSection({
   const lastUploadText = cosLogStatus?.last_successful_upload
     ? new Date(cosLogStatus.last_successful_upload * 1000).toLocaleString()
     : t('Never')
+
+  const handleResetDropped = async () => {
+    setIsResettingDropped(true)
+    try {
+      const response = await resetCosLogDropped()
+      if (!response.success) throw new Error(response.message)
+      toast.success(t('Dropped count cleared'))
+      await refreshCosLogStatus()
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : t('Failed to clear dropped count')
+      toast.error(message)
+    } finally {
+      setIsResettingDropped(false)
+    }
+  }
 
   const handleRequestCleanLogs = () => {
     if (!purgeTimestamp) {
@@ -541,6 +561,18 @@ export function LogSettingsSection({
                   <div className='font-medium'>
                     {cosLogStatus.dropped_total}
                   </div>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    className='mt-2'
+                    disabled={
+                      isResettingDropped || cosLogStatus.dropped_total === 0
+                    }
+                    onClick={handleResetDropped}
+                  >
+                    {isResettingDropped ? t('Clearing...') : t('Clear')}
+                  </Button>
                 </div>
               </div>
             ) : null}

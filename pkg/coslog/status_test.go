@@ -31,3 +31,15 @@ func TestWriterEnqueueDoesNotWaitForFileWorker(t *testing.T) {
 	}
 	w.mu.Unlock()
 }
+
+func TestResetDroppedTotal(t *testing.T) {
+	original := droppedTotal.Swap(7)
+	t.Cleanup(func() { droppedTotal.Store(original) })
+
+	if got := ResetDroppedTotal(); got != 7 {
+		t.Fatalf("reset returned %d, want 7", got)
+	}
+	if got := droppedTotal.Load(); got != 0 {
+		t.Fatalf("dropped total after reset = %d, want 0", got)
+	}
+}

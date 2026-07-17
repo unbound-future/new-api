@@ -18,6 +18,7 @@ type JSONLWriter struct {
 	currentFile string
 	buffer      []COSLOG
 	mu          sync.Mutex
+	enqueueMu   sync.RWMutex
 	ch          chan COSLOG
 	wg          sync.WaitGroup
 	closed      bool
@@ -62,24 +63,28 @@ func NewJSONLWriter(cfg Config) (*JSONLWriter, error) {
 }
 
 func (w *JSONLWriter) Write(entry COSLOG) {
-	w.mu.Lock()
+	w.enqueueMu.RLock()
+	defer w.enqueueMu.RUnlock()
 	if w.closed {
-		w.mu.Unlock()
+		recordDropped()
 		return
 	}
-	w.mu.Unlock()
-	w.ch <- entry
+	select {
+	case w.ch <- entry:
+	default:
+		recordDropped()
+	}
 }
 
 func (w *JSONLWriter) Close() {
-	w.mu.Lock()
+	w.enqueueMu.Lock()
 	if w.closed {
-		w.mu.Unlock()
+		w.enqueueMu.Unlock()
 		return
 	}
 	w.closed = true
-	w.mu.Unlock()
 	close(w.ch)
+	w.enqueueMu.Unlock()
 	w.wg.Wait()
 	w.mu.Lock()
 	w.flushBuffer("close")
@@ -124,10 +129,22 @@ func (w *JSONLWriter) flushBuffer(reason string) {
 		b, err := common.Marshal(entry)
 		if err != nil {
 			common.SysError("coslog marshal error: " + err.Error())
+			recordDropped()
 			continue
 		}
 		if w.file != nil {
-			w.file.Write(append(b, '\n'))
+			line := append(b, '\n')
+			n, writeErr := w.file.Write(line)
+			if writeErr != nil || n != len(line) {
+				recordDropped()
+				if writeErr != nil {
+					common.SysError("coslog write error: " + writeErr.Error())
+				} else {
+					common.SysError("coslog short write")
+				}
+			}
+		} else {
+			recordDropped()
 		}
 	}
 	w.buffer = w.buffer[:0]
@@ -156,6 +173,7 @@ func (w *JSONLWriter) uploadAndRemove(filePath string) {
 		common.SysError("coslog upload failed: " + err.Error())
 		return
 	}
+	recordUploadSuccess()
 	if w.cfg.DeleteAfterUpload {
 		os.Remove(filePath)
 	}
@@ -180,6 +198,7 @@ func Init() {
 	if !cfg.Enabled {
 		return
 	}
+	startSampleConfigSubscriber()
 	writer, err := NewJSONLWriter(cfg)
 	if err != nil {
 		common.SysError("coslog init failed: " + err.Error())

@@ -203,6 +203,11 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/waffo-pancake/subscription-product", controller.CreateWaffoPancakeSubscriptionProduct)
 			optionRoute.GET("/waffo-pancake/subscription-product-options", controller.ListWaffoPancakeSubscriptionProductOptions)
 		}
+		cosLogRoute := apiRouter.Group("/coslog")
+		cosLogRoute.Use(middleware.RootAuth())
+		{
+			cosLogRoute.GET("/status", controller.GetCosLogStatus)
+		}
 
 		// Custom OAuth provider management (root only)
 		customOAuthRoute := apiRouter.Group("/custom-oauth-provider")

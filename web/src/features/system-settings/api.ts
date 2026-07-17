@@ -20,6 +20,7 @@ import { api } from '@/lib/api'
 
 import type {
   ConfirmPaymentComplianceResponse,
+  CosLogStatusResponse,
   FetchUpstreamRatiosRequest,
   LogCleanupTask,
   SystemOptionsResponse,
@@ -81,6 +82,11 @@ export async function listSystemTasks(limit = 20) {
   const res = await api.get<SystemTaskListResponse>('/api/system-task/list', {
     params: { limit },
   })
+  return res.data
+}
+
+export async function getCosLogStatus() {
+  const res = await api.get<CosLogStatusResponse>('/api/coslog/status')
   return res.data
 }
 

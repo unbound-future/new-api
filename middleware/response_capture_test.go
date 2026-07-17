@@ -53,11 +53,14 @@ func TestResponseCaptureMiddlewareFlagMatrix(t *testing.T) {
 		name       string
 		coslog     bool
 		requestLog bool
+		sampleBps  int64
 		captured   bool
 	}{
-		{name: "both enabled", coslog: true, requestLog: true, captured: true},
+		{name: "both enabled", coslog: true, requestLog: true, sampleBps: 10000, captured: true},
+		{name: "request log ignores COSLOG sampling", coslog: true, requestLog: true, sampleBps: 0, captured: true},
 		{name: "request log only", coslog: false, requestLog: true, captured: true},
-		{name: "coslog only", coslog: true, requestLog: false, captured: true},
+		{name: "coslog sampled", coslog: true, requestLog: false, sampleBps: 10000, captured: true},
+		{name: "coslog not sampled", coslog: true, requestLog: false, sampleBps: 0, captured: false},
 		{name: "both disabled", coslog: false, requestLog: false, captured: false},
 	}
 
@@ -65,11 +68,14 @@ func TestResponseCaptureMiddlewareFlagMatrix(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			oldCoslog := common.CosLogEnabled
 			oldRequestLog := common.RequestLogEnabled
+			oldSampleBps := common.GetCosLogSampleBasisPoints()
 			common.CosLogEnabled = tt.coslog
 			common.RequestLogEnabled = tt.requestLog
+			common.SetCosLogSampleBasisPoints(tt.sampleBps)
 			t.Cleanup(func() {
 				common.CosLogEnabled = oldCoslog
 				common.RequestLogEnabled = oldRequestLog
+				common.SetCosLogSampleBasisPoints(oldSampleBps)
 			})
 
 			var captured bool

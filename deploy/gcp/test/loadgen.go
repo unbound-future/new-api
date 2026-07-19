@@ -33,6 +33,7 @@ type counters struct {
 }
 
 type summary struct {
+	Marker             string         `json:"marker"`
 	RPM                int            `json:"rpm"`
 	DurationSeconds    float64        `json:"duration_seconds"`
 	StreamPercent      int            `json:"stream_percent"`
@@ -67,11 +68,12 @@ func main() {
 	duration := flag.Duration("duration", 2*time.Minute, "traffic generation duration")
 	streamPercent := flag.Int("stream-percent", 85, "percentage of streaming requests")
 	inputBytes := flag.Int("input-bytes", 16384, "approximate user prompt size")
+	marker := flag.String("marker", "gcp-load-validation", "unique marker included in every user prompt")
 	requestTimeout := flag.Duration("request-timeout", 2*time.Minute, "per-request timeout")
 	maxInFlight := flag.Int("max-in-flight", 20000, "maximum concurrent requests")
 	flag.Parse()
 
-	if *tokenFile == "" || *rpm <= 0 || *duration <= 0 || *streamPercent < 0 || *streamPercent > 100 || *maxInFlight <= 0 {
+	if *tokenFile == "" || strings.TrimSpace(*marker) == "" || *rpm <= 0 || *duration <= 0 || *streamPercent < 0 || *streamPercent > 100 || *maxInFlight <= 0 {
 		log.Fatal("invalid arguments")
 	}
 	tokenBytes, err := os.ReadFile(*tokenFile)
@@ -95,7 +97,7 @@ func main() {
 		DisableCompression:    true,
 	}
 	client := &http.Client{Transport: transport}
-	prompt := "gcp-load-validation " + strings.Repeat("x", *inputBytes)
+	prompt := strings.TrimSpace(*marker) + " " + strings.Repeat("x", *inputBytes)
 	streamBody, _ := json.Marshal(map[string]any{
 		"model": "gcp-validation-model", "messages": []any{map[string]any{"role": "user", "content": prompt}}, "stream": true,
 	})
@@ -195,6 +197,7 @@ scheduleLoop:
 	elapsed := time.Since(start)
 	completed := stats.completed.Load()
 	result := summary{
+		Marker:          strings.TrimSpace(*marker),
 		RPM:             *rpm,
 		DurationSeconds: (*duration).Seconds(),
 		StreamPercent:   *streamPercent,

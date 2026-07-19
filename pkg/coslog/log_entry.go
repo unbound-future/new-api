@@ -55,7 +55,7 @@ func Record(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) {
 	if !IsSampled(ctx) {
 		return
 	}
-	if defaultWriter == nil {
+	if defaultWriter == nil && defaultPubSub == nil {
 		recordDropped()
 		return
 	}
@@ -143,6 +143,10 @@ func Record(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) {
 		LastStreamChunk:  lastStreamChunk,
 	}
 
+	if defaultPubSub != nil {
+		defaultPubSub.Write(entry)
+		return
+	}
 	defaultWriter.Write(entry)
 }
 

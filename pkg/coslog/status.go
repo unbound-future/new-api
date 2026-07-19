@@ -71,6 +71,14 @@ func GetStatus() Status {
 		FlushIntervalSeconds: int64(cfg.FlushInterval / time.Second),
 		MaxFileSize:          cfg.MaxFileSize,
 	}
+	if defaultPubSub != nil {
+		status.Initialized = !defaultPubSub.isClosed()
+		status.UploaderReady = defaultPubSub.uploader != nil
+		status.QueueDepth = defaultPubSub.queueDepth()
+		status.QueueCapacity = defaultPubSub.queueCapacity()
+		status.BufferedEntries = defaultPubSub.buffered()
+		return status
+	}
 	if defaultWriter == nil {
 		return status
 	}

@@ -10,6 +10,7 @@ import (
 
 type Config struct {
 	Enabled           bool
+	Transport         string // "local" or "pubsub"
 	StorageType       string // "cos" or "gcs"
 	Bucket            string
 	Region            string
@@ -22,11 +23,17 @@ type Config struct {
 	MaxFileSize       int64
 	LocalDir          string
 	DeleteAfterUpload bool
+	PubSubProjectID   string
+	PubSubTopicID     string
+	PubSubSubID       string
+	PubSubMaxBytes    int
+	PubSubWorkers     int
 }
 
 func LoadConfig() Config {
 	cfg := Config{
 		Enabled:           common.CosLogEnabled,
+		Transport:         os.Getenv("COSLOG_TRANSPORT"),
 		StorageType:       os.Getenv("COSLOG_STORAGE_TYPE"),
 		Bucket:            os.Getenv("OSS_BUCKET"),
 		Region:            os.Getenv("OSS_REGION"),
@@ -39,6 +46,14 @@ func LoadConfig() Config {
 		MaxFileSize:       100 * 1024 * 1024,
 		LocalDir:          "./oss_log",
 		DeleteAfterUpload: true,
+		PubSubProjectID:   os.Getenv("COSLOG_PUBSUB_PROJECT_ID"),
+		PubSubTopicID:     os.Getenv("COSLOG_PUBSUB_TOPIC"),
+		PubSubSubID:       os.Getenv("COSLOG_PUBSUB_SUBSCRIPTION"),
+		PubSubMaxBytes:    9_000_000,
+		PubSubWorkers:     32,
+	}
+	if cfg.Transport == "" {
+		cfg.Transport = "local"
 	}
 	if cfg.StorageType == "" {
 		cfg.StorageType = "cos"
@@ -63,6 +78,16 @@ func LoadConfig() Config {
 	}
 	if os.Getenv("COSLOG_DELETE_AFTER_UPLOAD") == "false" {
 		cfg.DeleteAfterUpload = false
+	}
+	if v := os.Getenv("COSLOG_PUBSUB_MAX_MESSAGE_BYTES"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.PubSubMaxBytes = n
+		}
+	}
+	if v := os.Getenv("COSLOG_PUBSUB_PUBLISH_WORKERS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.PubSubWorkers = n
+		}
 	}
 	return cfg
 }

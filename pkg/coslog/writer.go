@@ -26,6 +26,7 @@ type JSONLWriter struct {
 }
 
 var defaultWriter *JSONLWriter
+var defaultPubSub *PubSubTransport
 
 func NewJSONLWriter(cfg Config) (*JSONLWriter, error) {
 	if err := os.MkdirAll(cfg.LocalDir, 0755); err != nil {
@@ -199,6 +200,16 @@ func Init() {
 		return
 	}
 	startSampleConfigSubscriber()
+	if cfg.Transport == "pubsub" {
+		transport, err := NewPubSubTransport(cfg)
+		if err != nil {
+			common.SysError("coslog pubsub init failed: " + err.Error())
+			return
+		}
+		defaultPubSub = transport
+		common.SysLog("coslog initialized with pubsub transport")
+		return
+	}
 	writer, err := NewJSONLWriter(cfg)
 	if err != nil {
 		common.SysError("coslog init failed: " + err.Error())

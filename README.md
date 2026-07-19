@@ -329,6 +329,7 @@ docker run --name new-api -d --restart always \
 | `PYROSCOPE_BLOCK_RATE` | Pyroscope block sampling rate | `5` |
 | `HOSTNAME` | Hostname tag for Pyroscope | `new-api` |
 | `COSLOG_ENABLED` | Enable access log upload to cloud storage | `false` |
+| `COSLOG_TRANSPORT` | COSLOG transport: `local` (existing behavior) or `pubsub` | `local` |
 | `COSLOG_STORAGE_TYPE` | Storage backend: `cos` (Tencent COS) or `gcs` (Google Cloud Storage) | `cos` |
 | `OSS_BUCKET` | Cloud storage bucket name | - |
 | `OSS_REGION` | Region (required for COS) | - |
@@ -336,6 +337,11 @@ docker run --name new-api -d --restart always \
 | `OSS_SECRET_ID` | Tencent COS Secret ID | - |
 | `OSS_SECRET_KEY` | Tencent COS Secret Key | - |
 | `OSS_SERVICE_ACCOUNT_KEY` | GCS service account JSON key (optional, uses ADC if not set) | - |
+| `COSLOG_PUBSUB_PROJECT_ID` | Google Cloud project that owns the Pub/Sub resources | - |
+| `COSLOG_PUBSUB_TOPIC` | Pub/Sub topic used to publish complete COSLOG records | - |
+| `COSLOG_PUBSUB_SUBSCRIPTION` | Shared pull subscription used by GCS aggregators | - |
+| `COSLOG_PUBSUB_MAX_MESSAGE_BYTES` | Oversized-record threshold; larger records upload directly to GCS without truncation | `9000000` |
+| `COSLOG_PUBSUB_PUBLISH_WORKERS` | Number of asynchronous Pub/Sub publisher workers | `32` |
 
 📖 **Complete configuration:** [Environment Variables Documentation](https://docs.newapi.pro/en/docs/installation/config-maintenance/environment-variables)
 

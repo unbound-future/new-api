@@ -265,8 +265,10 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 			CompletionTokens: usage.OutputTokens,
 			Quota:            quota,
 		})
-		coslog.Record(ctx, relayInfo)
 	})
+	// Snapshot the response before the request context is released. Pub/Sub
+	// enqueue remains non-blocking, so this does not wait for network or GCS.
+	coslog.Record(ctx, relayInfo)
 }
 
 func CalcOpenRouterCacheCreateTokens(usage dto.Usage, priceData types.PriceData) int {
@@ -400,8 +402,10 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 			CompletionTokens: usage.CompletionTokens,
 			Quota:            quota,
 		})
-		coslog.Record(ctx, relayInfo)
 	})
+	// Snapshot the response before the request context is released. Pub/Sub
+	// enqueue remains non-blocking, so this does not wait for network or GCS.
+	coslog.Record(ctx, relayInfo)
 }
 
 func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {

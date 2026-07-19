@@ -502,6 +502,8 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 			ThinkingTokens:      summary.ThinkingTokens,
 			Quota:               summary.Quota,
 		})
-		coslog.Record(ctx, relayInfo)
 	})
+	// Snapshot the response while the request context and capture writer are
+	// still valid. The transport enqueue itself is non-blocking.
+	coslog.Record(ctx, relayInfo)
 }

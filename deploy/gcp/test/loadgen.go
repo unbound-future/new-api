@@ -19,37 +19,43 @@ import (
 )
 
 type counters struct {
-	started        atomic.Uint64
-	completed      atomic.Uint64
-	transportErr   atomic.Uint64
-	status2xx      atomic.Uint64
-	status4xx      atomic.Uint64
-	status5xx      atomic.Uint64
-	otherStatus    atomic.Uint64
-	inFlight       atomic.Int64
-	peakInFlight   atomic.Int64
-	firstByteNanos atomic.Uint64
-	totalNanos     atomic.Uint64
+	started          atomic.Uint64
+	completed        atomic.Uint64
+	transportErr     atomic.Uint64
+	requestErr       atomic.Uint64
+	responseReadErr  atomic.Uint64
+	responseCloseErr atomic.Uint64
+	status2xx        atomic.Uint64
+	status4xx        atomic.Uint64
+	status5xx        atomic.Uint64
+	otherStatus      atomic.Uint64
+	inFlight         atomic.Int64
+	peakInFlight     atomic.Int64
+	firstByteNanos   atomic.Uint64
+	totalNanos       atomic.Uint64
 }
 
 type summary struct {
-	Marker             string         `json:"marker"`
-	RPM                int            `json:"rpm"`
-	DurationSeconds    float64        `json:"duration_seconds"`
-	StreamPercent      int            `json:"stream_percent"`
-	InputBytes         int            `json:"input_bytes"`
-	Started            uint64         `json:"started"`
-	Completed          uint64         `json:"completed"`
-	TransportErrors    uint64         `json:"transport_errors"`
-	Status2xx          uint64         `json:"status_2xx"`
-	Status4xx          uint64         `json:"status_4xx"`
-	Status5xx          uint64         `json:"status_5xx"`
-	OtherStatus        uint64         `json:"other_status"`
-	PeakInFlight       int64          `json:"peak_in_flight"`
-	AverageFirstByteMS float64        `json:"average_first_byte_ms"`
-	AverageTotalMS     float64        `json:"average_total_ms"`
-	StatusCounts       map[int]uint64 `json:"status_counts"`
-	ElapsedSeconds     float64        `json:"elapsed_seconds"`
+	Marker              string         `json:"marker"`
+	RPM                 int            `json:"rpm"`
+	DurationSeconds     float64        `json:"duration_seconds"`
+	StreamPercent       int            `json:"stream_percent"`
+	InputBytes          int            `json:"input_bytes"`
+	Started             uint64         `json:"started"`
+	Completed           uint64         `json:"completed"`
+	TransportErrors     uint64         `json:"transport_errors"`
+	RequestErrors       uint64         `json:"request_errors"`
+	ResponseReadErrors  uint64         `json:"response_read_errors"`
+	ResponseCloseErrors uint64         `json:"response_close_errors"`
+	Status2xx           uint64         `json:"status_2xx"`
+	Status4xx           uint64         `json:"status_4xx"`
+	Status5xx           uint64         `json:"status_5xx"`
+	OtherStatus         uint64         `json:"other_status"`
+	PeakInFlight        int64          `json:"peak_in_flight"`
+	AverageFirstByteMS  float64        `json:"average_first_byte_ms"`
+	AverageTotalMS      float64        `json:"average_total_ms"`
+	StatusCounts        map[int]uint64 `json:"status_counts"`
+	ElapsedSeconds      float64        `json:"elapsed_seconds"`
 }
 
 func updatePeak(peak *atomic.Int64, current int64) {
@@ -159,6 +165,7 @@ scheduleLoop:
 			req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, *target, bytes.NewReader(payload))
 			if err != nil {
 				stats.transportErr.Add(1)
+				stats.requestErr.Add(1)
 				return
 			}
 			req.Header.Set("Authorization", "Bearer "+token)
@@ -166,12 +173,22 @@ scheduleLoop:
 			resp, err := client.Do(req)
 			if err != nil {
 				stats.transportErr.Add(1)
+				stats.requestErr.Add(1)
 				return
 			}
 			firstByteAt := time.Now()
 			_, copyErr := io.Copy(io.Discard, resp.Body)
 			closeErr := resp.Body.Close()
-			if copyErr != nil || closeErr != nil {
+			hasResponseError := false
+			if copyErr != nil {
+				stats.responseReadErr.Add(1)
+				hasResponseError = true
+			}
+			if closeErr != nil {
+				stats.responseCloseErr.Add(1)
+				hasResponseError = true
+			}
+			if hasResponseError {
 				stats.transportErr.Add(1)
 			}
 			stats.completed.Add(1)
@@ -197,21 +214,24 @@ scheduleLoop:
 	elapsed := time.Since(start)
 	completed := stats.completed.Load()
 	result := summary{
-		Marker:          strings.TrimSpace(*marker),
-		RPM:             *rpm,
-		DurationSeconds: (*duration).Seconds(),
-		StreamPercent:   *streamPercent,
-		InputBytes:      *inputBytes,
-		Started:         stats.started.Load(),
-		Completed:       completed,
-		TransportErrors: stats.transportErr.Load(),
-		Status2xx:       stats.status2xx.Load(),
-		Status4xx:       stats.status4xx.Load(),
-		Status5xx:       stats.status5xx.Load(),
-		OtherStatus:     stats.otherStatus.Load(),
-		PeakInFlight:    stats.peakInFlight.Load(),
-		StatusCounts:    statusCounts,
-		ElapsedSeconds:  elapsed.Seconds(),
+		Marker:              strings.TrimSpace(*marker),
+		RPM:                 *rpm,
+		DurationSeconds:     (*duration).Seconds(),
+		StreamPercent:       *streamPercent,
+		InputBytes:          *inputBytes,
+		Started:             stats.started.Load(),
+		Completed:           completed,
+		TransportErrors:     stats.transportErr.Load(),
+		RequestErrors:       stats.requestErr.Load(),
+		ResponseReadErrors:  stats.responseReadErr.Load(),
+		ResponseCloseErrors: stats.responseCloseErr.Load(),
+		Status2xx:           stats.status2xx.Load(),
+		Status4xx:           stats.status4xx.Load(),
+		Status5xx:           stats.status5xx.Load(),
+		OtherStatus:         stats.otherStatus.Load(),
+		PeakInFlight:        stats.peakInFlight.Load(),
+		StatusCounts:        statusCounts,
+		ElapsedSeconds:      elapsed.Seconds(),
 	}
 	if completed > 0 {
 		result.AverageFirstByteMS = float64(stats.firstByteNanos.Load()) / float64(completed) / float64(time.Millisecond)

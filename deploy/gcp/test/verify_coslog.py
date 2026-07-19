@@ -1,18 +1,25 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import sys
+from contextlib import nullcontext
 from pathlib import Path
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Validate COSLOG JSONL without printing payload contents")
-    parser.add_argument("files", nargs="+", type=Path)
+    parser.add_argument("files", nargs="+", help="JSONL files, or - to read one combined stream from stdin")
     parser.add_argument("--marker", default="")
     parser.add_argument("--min-request-bytes", type=int, default=0)
+    parser.add_argument("--source-files", type=int, help="actual source object count when reading stdin")
+    parser.add_argument("--source-bytes", type=int, help="actual source byte count when reading stdin")
     args = parser.parse_args()
 
+    if args.files.count("-") > 1 or ("-" in args.files and len(args.files) > 1):
+        parser.error("stdin mode must be used as the only positional source")
+
     summary = {
-        "files": len(args.files),
+        "files": args.source_files if args.source_files is not None else len(args.files),
         "bytes": 0,
         "scanned_records": 0,
         "records": 0,
@@ -28,9 +35,14 @@ def main() -> None:
         "min_response_body_bytes": None,
     }
 
-    for path in args.files:
-        summary["bytes"] += path.stat().st_size
-        with path.open("rb") as handle:
+    for source in args.files:
+        if source == "-":
+            source_context = nullcontext(sys.stdin.buffer)
+        else:
+            path = Path(source)
+            summary["bytes"] += path.stat().st_size
+            source_context = path.open("rb")
+        with source_context as handle:
             for line in handle:
                 if not line.strip():
                     continue
@@ -66,6 +78,9 @@ def main() -> None:
                     summary["non_stream_records"] += 1
                 status = str(row.get("status_code"))
                 summary["status_codes"][status] = summary["status_codes"].get(status, 0) + 1
+
+    if args.source_bytes is not None:
+        summary["bytes"] = args.source_bytes
 
     print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
     if summary["invalid_json_lines"] or summary["empty_request_body"] or summary["empty_response_body"]:

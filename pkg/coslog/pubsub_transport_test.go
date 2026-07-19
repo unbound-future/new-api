@@ -108,6 +108,32 @@ func TestOversizedDirectUploadFailureKeepsCompleteLocalFile(t *testing.T) {
 	}
 }
 
+func TestOversizedEntryBypassesPubSubWithoutTruncation(t *testing.T) {
+	dir := t.TempDir()
+	uploader := &recordingUploader{}
+	transport := &PubSubTransport{
+		cfg: Config{
+			LocalDir:          dir,
+			DeleteAfterUpload: true,
+			PubSubMaxBytes:    64,
+		},
+		uploader:  uploader,
+		publishCh: make(chan COSLOG, 1),
+	}
+	requestBody := strings.Repeat("完整请求-content-", 100)
+	transport.publishCh <- COSLOG{RequestID: "req_large_route", RequestBody: requestBody}
+	close(transport.publishCh)
+	transport.wg.Add(1)
+	transport.publishLoop()
+
+	if !strings.Contains(string(uploader.contents), requestBody) {
+		t.Fatal("oversized direct upload was truncated")
+	}
+	if !strings.Contains(string(uploader.contents), `"request_id":"req_large_route"`) {
+		t.Fatal("oversized direct upload lost request id")
+	}
+}
+
 func TestLoadConfigPubSubDefaults(t *testing.T) {
 	t.Setenv("COSLOG_TRANSPORT", "pubsub")
 	t.Setenv("COSLOG_PUBSUB_PROJECT_ID", "project")

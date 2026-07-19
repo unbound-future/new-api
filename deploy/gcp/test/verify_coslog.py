@@ -11,6 +11,8 @@ def main() -> None:
     parser.add_argument("files", nargs="+", help="JSONL files, or - to read one combined stream from stdin")
     parser.add_argument("--marker", default="")
     parser.add_argument("--min-request-bytes", type=int, default=0)
+    parser.add_argument("--min-stream-response-bytes", type=int, default=0)
+    parser.add_argument("--min-non-stream-response-bytes", type=int, default=0)
     parser.add_argument("--source-files", type=int, help="actual source object count when reading stdin")
     parser.add_argument("--source-bytes", type=int, help="actual source byte count when reading stdin")
     args = parser.parse_args()
@@ -33,6 +35,12 @@ def main() -> None:
         "empty_response_body": 0,
         "min_request_body_bytes": None,
         "min_response_body_bytes": None,
+        "min_stream_response_body_bytes": None,
+        "max_stream_response_body_bytes": None,
+        "min_non_stream_response_body_bytes": None,
+        "max_non_stream_response_body_bytes": None,
+        "incomplete_stream_response_body": 0,
+        "incomplete_non_stream_response_body": 0,
     }
 
     for source in args.files:
@@ -74,8 +82,20 @@ def main() -> None:
                     summary["marker_records"] += 1
                 if row.get("is_stream"):
                     summary["stream_records"] += 1
+                    current_min = summary["min_stream_response_body_bytes"]
+                    current_max = summary["max_stream_response_body_bytes"]
+                    summary["min_stream_response_body_bytes"] = response_size if current_min is None else min(current_min, response_size)
+                    summary["max_stream_response_body_bytes"] = response_size if current_max is None else max(current_max, response_size)
+                    if response_size < args.min_stream_response_bytes:
+                        summary["incomplete_stream_response_body"] += 1
                 else:
                     summary["non_stream_records"] += 1
+                    current_min = summary["min_non_stream_response_body_bytes"]
+                    current_max = summary["max_non_stream_response_body_bytes"]
+                    summary["min_non_stream_response_body_bytes"] = response_size if current_min is None else min(current_min, response_size)
+                    summary["max_non_stream_response_body_bytes"] = response_size if current_max is None else max(current_max, response_size)
+                    if response_size < args.min_non_stream_response_bytes:
+                        summary["incomplete_non_stream_response_body"] += 1
                 status = str(row.get("status_code"))
                 summary["status_codes"][status] = summary["status_codes"].get(status, 0) + 1
 
@@ -83,7 +103,13 @@ def main() -> None:
         summary["bytes"] = args.source_bytes
 
     print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
-    if summary["invalid_json_lines"] or summary["empty_request_body"] or summary["empty_response_body"]:
+    if (
+        summary["invalid_json_lines"]
+        or summary["empty_request_body"]
+        or summary["empty_response_body"]
+        or summary["incomplete_stream_response_body"]
+        or summary["incomplete_non_stream_response_body"]
+    ):
         raise SystemExit(2)
     if args.marker and summary["marker_records"] == 0:
         raise SystemExit(3)

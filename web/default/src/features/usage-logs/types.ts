@@ -197,6 +197,8 @@ export interface LogOtherData {
 export interface LogStatistics {
   quota: number
   rpm: number
+  total_rpm?: number
+  success_rpm?: number
   tpm: number
 }
 

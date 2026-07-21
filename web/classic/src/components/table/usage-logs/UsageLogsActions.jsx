@@ -35,9 +35,10 @@ const LogsActions = ({
   const needSkeleton = !showStat || showSkeleton;
 
   const placeholder = (
-    <Space>
+    <Space wrap>
       <Skeleton.Title style={{ width: 108, height: 21, borderRadius: 6 }} />
       <Skeleton.Title style={{ width: 65, height: 21, borderRadius: 6 }} />
+      <Skeleton.Title style={{ width: 64, height: 21, borderRadius: 6 }} />
       <Skeleton.Title style={{ width: 64, height: 21, borderRadius: 6 }} />
     </Space>
   );
@@ -45,7 +46,7 @@ const LogsActions = ({
   return (
     <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
       <Skeleton loading={needSkeleton} active placeholder={placeholder}>
-        <Space>
+        <Space wrap>
           <Tag
             color='blue'
             style={{
@@ -66,7 +67,18 @@ const LogsActions = ({
             }}
             className='!rounded-lg'
           >
-            RPM: {stat.rpm}
+            {t('总 RPM')}: {stat.total_rpm ?? stat.rpm ?? 0}
+          </Tag>
+          <Tag
+            color='green'
+            style={{
+              fontWeight: 500,
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+              padding: 13,
+            }}
+            className='!rounded-lg'
+          >
+            {t('成功 RPM')}: {stat.success_rpm ?? stat.rpm ?? 0}
           </Tag>
           <Tag
             color='white'

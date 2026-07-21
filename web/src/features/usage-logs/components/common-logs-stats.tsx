@@ -81,6 +81,7 @@ export function CommonLogsStats() {
         <Skeleton className='h-7 w-[150px] rounded-md' />
         <Skeleton className='h-7 w-[100px] rounded-md' />
         <Skeleton className='h-7 w-[120px] rounded-md' />
+        <Skeleton className='h-7 w-[120px] rounded-md' />
       </div>
     )
   }
@@ -93,9 +94,14 @@ export function CommonLogsStats() {
         accent='bg-sky-500/70'
       />
       <StatBadge
-        label={t('RPM')}
-        value={stats?.rpm || 0}
+        label={t('Total RPM')}
+        value={stats?.total_rpm ?? stats?.rpm ?? 0}
         accent='bg-rose-500/65'
+      />
+      <StatBadge
+        label={t('Successful RPM')}
+        value={stats?.success_rpm ?? stats?.rpm ?? 0}
+        accent='bg-emerald-500/65'
       />
       <StatBadge
         label={t('TPM')}

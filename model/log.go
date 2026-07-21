@@ -613,16 +613,20 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 }
 
 type Stat struct {
-	Quota int `json:"quota"`
-	Rpm   int `json:"rpm"`
-	Tpm   int `json:"tpm"`
+	Quota      int `json:"quota"`
+	Rpm        int `json:"rpm"`
+	TotalRpm   int `json:"total_rpm"`
+	SuccessRpm int `json:"success_rpm"`
+	Tpm        int `json:"tpm"`
 }
 
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("COALESCE(sum(quota), 0) quota")
 
-	// 为rpm和tpm创建单独的查询
+	// 为 RPM 和 TPM 创建单独的查询。
 	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, COALESCE(sum(prompt_tokens), 0) + COALESCE(sum(completion_tokens), 0) tpm")
+	// 总 RPM 包含最近 60 秒内的成功请求和错误请求。
+	totalRpmQuery := LOG_DB.Table("logs").Select("count(*) total_rpm")
 
 	if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
 		return stat, err
@@ -630,9 +634,13 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "username", username); err != nil {
 		return stat, err
 	}
+	if totalRpmQuery, err = applyExplicitLogTextFilter(totalRpmQuery, "username", username); err != nil {
+		return stat, err
+	}
 	if tokenName != "" {
 		tx = tx.Where("token_name = ?", tokenName)
 		rpmTpmQuery = rpmTpmQuery.Where("token_name = ?", tokenName)
+		totalRpmQuery = totalRpmQuery.Where("token_name = ?", tokenName)
 	}
 	if startTimestamp != 0 {
 		tx = tx.Where("created_at >= ?", startTimestamp)
@@ -646,20 +654,28 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "model_name", modelName); err != nil {
 		return stat, err
 	}
+	if totalRpmQuery, err = applyExplicitLogTextFilter(totalRpmQuery, "model_name", modelName); err != nil {
+		return stat, err
+	}
 	if channel != 0 {
 		tx = tx.Where("channel_id = ?", channel)
 		rpmTpmQuery = rpmTpmQuery.Where("channel_id = ?", channel)
+		totalRpmQuery = totalRpmQuery.Where("channel_id = ?", channel)
 	}
 	if group != "" {
 		tx = tx.Where(logGroupCol+" = ?", group)
 		rpmTpmQuery = rpmTpmQuery.Where(logGroupCol+" = ?", group)
+		totalRpmQuery = totalRpmQuery.Where(logGroupCol+" = ?", group)
 	}
 
 	tx = tx.Where("type = ?", LogTypeConsume)
 	rpmTpmQuery = rpmTpmQuery.Where("type = ?", LogTypeConsume)
+	totalRpmQuery = totalRpmQuery.Where("type IN ?", []int{LogTypeConsume, LogTypeError})
 
 	// 只统计最近60秒的rpm和tpm
-	rpmTpmQuery = rpmTpmQuery.Where("created_at >= ?", time.Now().Add(-60*time.Second).Unix())
+	rpmSince := time.Now().Add(-60 * time.Second).Unix()
+	rpmTpmQuery = rpmTpmQuery.Where("created_at >= ?", rpmSince)
+	totalRpmQuery = totalRpmQuery.Where("created_at >= ?", rpmSince)
 
 	// 执行查询
 	if err := tx.Scan(&stat).Error; err != nil {
@@ -670,6 +686,16 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 		common.SysError("failed to query rpm/tpm stat: " + err.Error())
 		return stat, errors.New("查询统计数据失败")
 	}
+	stat.SuccessRpm = stat.Rpm
+
+	var totalRpmStat struct {
+		TotalRpm int `gorm:"column:total_rpm"`
+	}
+	if err := totalRpmQuery.Scan(&totalRpmStat).Error; err != nil {
+		common.SysError("failed to query total rpm stat: " + err.Error())
+		return stat, errors.New("查询统计数据失败")
+	}
+	stat.TotalRpm = totalRpmStat.TotalRpm
 
 	return stat, nil
 }

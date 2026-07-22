@@ -443,18 +443,14 @@ func UpdateCompletionRatioByJSONString(jsonStr string) error {
 func GetCompletionRatio(name string) float64 {
 	name = FormatMatchingModelName(name)
 
-	if strings.Contains(name, "/") {
-		if ratio, ok := completionRatioMap.Get(name); ok {
-			return ratio
-		}
-	}
-	hardCodedRatio, contain := getHardcodedCompletionModelRatio(name)
-	if contain {
-		return hardCodedRatio
-	}
+	// An explicit administrator setting must always take precedence. The
+	// hard-coded table below is only a fallback for models without a configured
+	// completion ratio. This also keeps custom model names that share an
+	// official prefix (for example, gpt-5.6-sol) configurable.
 	if ratio, ok := completionRatioMap.Get(name); ok {
 		return ratio
 	}
+	hardCodedRatio, _ := getHardcodedCompletionModelRatio(name)
 	return hardCodedRatio
 }
 
@@ -466,12 +462,10 @@ type CompletionRatioInfo struct {
 func GetCompletionRatioInfo(name string) CompletionRatioInfo {
 	name = FormatMatchingModelName(name)
 
-	if strings.Contains(name, "/") {
-		if ratio, ok := completionRatioMap.Get(name); ok {
-			return CompletionRatioInfo{
-				Ratio:  ratio,
-				Locked: false,
-			}
+	if ratio, ok := completionRatioMap.Get(name); ok {
+		return CompletionRatioInfo{
+			Ratio:  ratio,
+			Locked: false,
 		}
 	}
 

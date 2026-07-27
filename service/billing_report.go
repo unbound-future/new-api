@@ -276,15 +276,16 @@ func setBillingReportError(err error) {
 
 func nextBillingReportJob() (*model.BillingReportJob, error) {
 	var job model.BillingReportJob
-	err := model.LOG_DB.
+	result := model.LOG_DB.
 		Where("status IN ?", []string{model.BillingReportJobRunning, model.BillingReportJobPending}).
 		Order("CASE WHEN status = 'running' THEN 0 ELSE 1 END, id ASC").
-		First(&job).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, nil
+		Limit(1).
+		Find(&job)
+	if result.Error != nil {
+		return nil, result.Error
 	}
-	if err != nil {
-		return nil, err
+	if result.RowsAffected == 0 {
+		return nil, nil
 	}
 	return &job, nil
 }

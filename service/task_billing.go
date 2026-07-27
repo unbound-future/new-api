@@ -52,6 +52,16 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 		other["upstream_model_name"] = info.UpstreamModelName
 	}
 	attachQuotaSaturation(c, info, other)
+	AppendBillingReportSnapshot(
+		other,
+		info,
+		info.PriceData.Quota,
+		BillingQuotaBeforeGroup(
+			info.PriceData.Quota,
+			info.PriceData.GroupRatioInfo.GroupRatio,
+			info.PriceData.ModelPrice*common.QuotaPerUnit,
+		),
+	)
 	model.RecordConsumeLog(c, info.UserId, model.RecordConsumeLogParams{
 		ChannelId: info.ChannelId,
 		ModelName: info.OriginModelName,

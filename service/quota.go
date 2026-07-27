@@ -243,6 +243,11 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}
 	attachQuotaSaturation(ctx, relayInfo, other)
+	beforeGroupQuota := modelPrice * common.QuotaPerUnit
+	if tieredResult != nil {
+		beforeGroupQuota = tieredResult.ActualQuotaBeforeGroup
+	}
+	AppendBillingReportSnapshot(other, relayInfo, quota, BillingQuotaBeforeGroup(quota, groupRatio, beforeGroupQuota))
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
 		PromptTokens:     usage.InputTokens,
@@ -370,6 +375,11 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}
 	attachQuotaSaturation(ctx, relayInfo, other)
+	beforeGroupQuota := modelPrice * common.QuotaPerUnit
+	if tieredResult != nil {
+		beforeGroupQuota = tieredResult.ActualQuotaBeforeGroup
+	}
+	AppendBillingReportSnapshot(other, relayInfo, quota, BillingQuotaBeforeGroup(quota, groupRatio, beforeGroupQuota))
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
 		PromptTokens:     usage.PromptTokens,

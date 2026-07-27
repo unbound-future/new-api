@@ -506,6 +506,20 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	milliseconds := tok.Sub(tik).Milliseconds()
 	consumedTime := float64(milliseconds) / 1000.0
 	other := buildTestLogOther(c, info, priceData, usage, tieredResult)
+	beforeGroupQuota := priceData.ModelPrice * common.QuotaPerUnit
+	if tieredResult != nil {
+		beforeGroupQuota = tieredResult.ActualQuotaBeforeGroup
+	}
+	service.AppendBillingReportSnapshot(
+		other,
+		info,
+		quota,
+		service.BillingQuotaBeforeGroup(
+			quota,
+			priceData.GroupRatioInfo.GroupRatio,
+			beforeGroupQuota,
+		),
+	)
 	model.RecordConsumeLog(c, testUserID, model.RecordConsumeLogParams{
 		ChannelId:        channel.Id,
 		PromptTokens:     usage.PromptTokens,

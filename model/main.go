@@ -214,7 +214,10 @@ func InitLogDB() (err error) {
 		LOG_DB = DB
 		common.SetLogDatabaseType(common.MainDatabaseType())
 		initCol()
-		return
+		if !common.IsMasterNode {
+			return nil
+		}
+		return migrateBillingReportTables(LOG_DB)
 	}
 	db, dbType, err := chooseDB("LOG_SQL_DSN", true)
 	if err == nil {
@@ -404,7 +407,10 @@ func migrateLOGDB() error {
 	if err := LOG_DB.AutoMigrate(&Log{}); err != nil {
 		return err
 	}
-	return LOG_DB.AutoMigrate(&RequestLog{})
+	if err := LOG_DB.AutoMigrate(&RequestLog{}); err != nil {
+		return err
+	}
+	return migrateBillingReportTables(LOG_DB)
 }
 
 func migrateClickHouseLogDB() error {
@@ -494,6 +500,14 @@ func clickHouseLogTableHasTTL() (bool, error) {
 func clickHouseCreateTableHasTTL(createTableSQL string) bool {
 	upperSQL := strings.ToUpper(createTableSQL)
 	return strings.Contains(upperSQL, "\nTTL ") || strings.Contains(upperSQL, " TTL ")
+}
+
+func migrateBillingReportTables(db *gorm.DB) error {
+	return db.AutoMigrate(
+		&BillingReportDaily{},
+		&BillingReportState{},
+		&BillingReportJob{},
+	)
 }
 
 type sqliteColumnDef struct {

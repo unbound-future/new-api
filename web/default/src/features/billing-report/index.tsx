@@ -115,6 +115,14 @@ function statusTone(status?: string) {
   return 'secondary' as const
 }
 
+function statusLabel(status?: string) {
+  if (status === 'idle') return 'Idle'
+  if (status === 'syncing') return 'Syncing'
+  if (status === 'rebuilding') return 'Rebuilding'
+  if (status === 'error') return 'Error'
+  return status || ''
+}
+
 function BillingStatus({
   status,
   isFetching,
@@ -162,7 +170,9 @@ function BillingStatus({
             <div className='text-muted-foreground text-xs'>{t('State')}</div>
             <div className='mt-1'>
               <Badge variant={statusTone(status?.state?.status)}>
-                {status?.state?.status || '—'}
+                {status?.state?.status
+                  ? t(statusLabel(status.state.status))
+                  : '—'}
               </Badge>
             </div>
           </div>

@@ -193,6 +193,15 @@ func SetApiRouter(router *gin.Engine) {
 			cosLogRoute.GET("/status", controller.GetCosLogStatus)
 			cosLogRoute.POST("/reset-dropped", controller.ResetCosLogDropped)
 		}
+		billingReportRoute := apiRouter.Group("/billing-report")
+		billingReportRoute.Use(middleware.RootAuth())
+		{
+			billingReportRoute.GET("/", controller.GetBillingReport)
+			billingReportRoute.GET("/status", controller.GetBillingReportStatus)
+			billingReportRoute.GET("/export", controller.ExportBillingReport)
+			billingReportRoute.PUT("/auto", controller.UpdateBillingReportAuto)
+			billingReportRoute.POST("/rebuild", controller.CreateBillingReportRebuild)
+		}
 
 		// Custom OAuth provider management (root only)
 		customOAuthRoute := apiRouter.Group("/custom-oauth-provider")

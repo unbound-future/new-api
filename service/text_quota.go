@@ -473,6 +473,11 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	if tieredBillingApplied {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}
+	beforeGroupQuota := summary.ModelPrice * common.QuotaPerUnit
+	if tieredResult != nil {
+		beforeGroupQuota = tieredResult.ActualQuotaBeforeGroup
+	}
+	AppendBillingReportSnapshot(other, relayInfo, summary.Quota, BillingQuotaBeforeGroup(summary.Quota, summary.GroupRatio, beforeGroupQuota))
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,

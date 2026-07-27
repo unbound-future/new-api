@@ -1087,12 +1087,15 @@ func GetBillingReportStatus() (BillingReportStatus, error) {
 		return status, err
 	}
 	var active model.BillingReportJob
-	err := model.LOG_DB.Where("status IN ?", []string{model.BillingReportJobRunning, model.BillingReportJobPending}).
-		Order("id ASC").First(&active).Error
-	if err == nil {
+	result := model.LOG_DB.Where("status IN ?", []string{model.BillingReportJobRunning, model.BillingReportJobPending}).
+		Order("id ASC").
+		Limit(1).
+		Find(&active)
+	if result.Error != nil {
+		return status, result.Error
+	}
+	if result.RowsAffected > 0 {
 		status.ActiveJob = &active
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return status, err
 	}
 	if err := model.LOG_DB.Model(&model.BillingReportJob{}).
 		Where("status = ?", model.BillingReportJobPending).

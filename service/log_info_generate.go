@@ -14,6 +14,37 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// AppendBillingReportSnapshot stores immutable dimensions and the exact charged
+// quota needed by the asynchronous billing report. It only appends optional
+// keys to the existing log JSON and does not add another database write.
+func AppendBillingReportSnapshot(other map[string]interface{}, relayInfo *relaycommon.RelayInfo, adjustedQuota int, beforeGroupQuota float64) {
+	if !BillingReportEnabled() || other == nil || relayInfo == nil {
+		return
+	}
+	if beforeGroupQuota < 0 {
+		beforeGroupQuota = 0
+	}
+	other["billing_report"] = map[string]interface{}{
+		"user_group":         relayInfo.UserGroup,
+		"third_party_group":  relayInfo.UsingGroup,
+		"channel_name":       relayInfo.ChannelName,
+		"channel_tag":        relayInfo.ChannelTag,
+		"upstream_url":       relayInfo.ChannelBaseUrl,
+		"quota_after_group":  adjustedQuota,
+		"quota_before_group": beforeGroupQuota,
+	}
+}
+
+func BillingQuotaBeforeGroup(adjustedQuota int, groupRatio float64, fallback float64) float64 {
+	if groupRatio > 0 {
+		return float64(adjustedQuota) / groupRatio
+	}
+	if fallback > 0 {
+		return fallback
+	}
+	return 0
+}
+
 func appendRequestPath(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
 	if other == nil {
 		return
@@ -261,6 +292,16 @@ func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData types.Price
 	if priceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = priceData.GroupRatioInfo.GroupSpecialRatio
 	}
+	AppendBillingReportSnapshot(
+		other,
+		relayInfo,
+		priceData.Quota,
+		BillingQuotaBeforeGroup(
+			priceData.Quota,
+			priceData.GroupRatioInfo.GroupRatio,
+			priceData.ModelPrice*common.QuotaPerUnit,
+		),
+	)
 	appendRequestPath(nil, relayInfo, other)
 	return other
 }

@@ -33,13 +33,17 @@ import {
   CreditCard,
   ListTodo,
   Settings,
+  ReceiptText,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '@/stores/auth-store'
+import { ROLE } from '@/lib/roles'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
 import { type SidebarData } from '@/components/layout/types'
 
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const userRole = useAuthStore((state) => state.auth.user?.role)
 
   return {
     workspaces: [
@@ -145,6 +149,15 @@ export function useSidebarData(): SidebarData {
             url: '/subscriptions',
             icon: CreditCard,
           },
+          ...(userRole === ROLE.SUPER_ADMIN
+            ? [
+                {
+                  title: t('Billing Report'),
+                  url: '/billing-report',
+                  icon: ReceiptText,
+                },
+              ]
+            : []),
           {
             title: t('System Settings'),
             url: '/system-settings/site',

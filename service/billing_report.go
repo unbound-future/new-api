@@ -129,10 +129,18 @@ func acquireBillingReportLease(owner string) (bool, error) {
 
 func renewBillingReportLease(tx *gorm.DB, owner string) error {
 	now := time.Now().Unix()
+	nextExpiry := now + int64(billingReportLeaseDuration/time.Second)
 	result := tx.Model(&model.BillingReportState{}).
 		Where("id = ? AND lock_owner = ?", model.BillingReportStateID, owner).
 		Updates(map[string]interface{}{
-			"lock_until": now + int64(billingReportLeaseDuration/time.Second),
+			// MySQL reports zero affected rows when an UPDATE writes the same
+			// values. Always advance the lease by at least one second so a
+			// successful renewal cannot be mistaken for a lost lease.
+			"lock_until": gorm.Expr(
+				"CASE WHEN lock_until >= ? THEN lock_until + 1 ELSE ? END",
+				nextExpiry,
+				nextExpiry,
+			),
 			"updated_at": now,
 		})
 	if result.Error != nil {

@@ -184,19 +184,37 @@ func createBillingReportWorkbook(filters model.BillingReportFilters) (*excelize.
 		return nil, err
 	}
 	headers := []interface{}{
-		"日期", "客户", "用户分组", "第三方分组", "渠道标签", "渠道名称", "上游地址", "模型", "Token名称",
-		"输入Token", "输出Token", "缓存读Token", "缓存写Token", "调用次数",
-		"倍率前输入价格", "倍率前输出价格", "倍率前缓存读价格", "倍率前缓存写价格", "倍率前其他费用", "倍率前总价",
+		"日期", "客户", "用户分组", "使用分组", "渠道标签", "渠道名称", "上游地址", "模型", "令牌名称",
+		"计费方式", "命中阶梯", "输入Token", "输出Token", "缓存读Token", "缓存写Token", "调用次数",
+		"倍率前输入价格", "倍率前输出价格", "倍率前缓存读价格", "倍率前缓存写价格", "倍率前其他/差额费用", "倍率前总价",
 		"用户/分组倍率",
-		"折算后输入价格", "折算后输出价格", "折算后缓存读价格", "折算后缓存写价格", "折算后其他费用", "折算后实际总价",
-		"倍率前输入单价/M", "倍率前输出单价/M", "倍率前缓存读单价/M", "倍率前缓存写单价/M",
-		"折算后输入单价/M", "折算后输出单价/M", "折算后缓存读单价/M", "折算后缓存写单价/M",
+		"折算后输入价格", "折算后输出价格", "折算后缓存读价格", "折算后缓存写价格", "折算后其他/差额费用", "折算后实际总价",
+		"输入单价/M", "输出单价/M", "缓存读单价/M", "缓存写单价/M",
 	}
-	headerStyle, err := file.NewStyle(&excelize.Style{
-		Font:      &excelize.Font{Bold: true, Color: "FFFFFF"},
-		Fill:      excelize.Fill{Type: "pattern", Color: []string{"374151"}, Pattern: 1},
-		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center"},
-	})
+	newHeaderStyle := func(color string) (int, error) {
+		return file.NewStyle(&excelize.Style{
+			Font:      &excelize.Font{Bold: true, Color: "FFFFFF"},
+			Fill:      excelize.Fill{Type: "pattern", Color: []string{color}, Pattern: 1},
+			Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center"},
+		})
+	}
+	normalHeaderStyle, err := newHeaderStyle("374151")
+	if err != nil {
+		return nil, err
+	}
+	originalHeaderStyle, err := newHeaderStyle("1D4ED8")
+	if err != nil {
+		return nil, err
+	}
+	ratioHeaderStyle, err := newHeaderStyle("92400E")
+	if err != nil {
+		return nil, err
+	}
+	adjustedHeaderStyle, err := newHeaderStyle("047857")
+	if err != nil {
+		return nil, err
+	}
+	unitHeaderStyle, err := newHeaderStyle("6D28D9")
 	if err != nil {
 		return nil, err
 	}
@@ -209,9 +227,50 @@ func createBillingReportWorkbook(filters model.BillingReportFilters) (*excelize.
 	if err != nil {
 		return nil, err
 	}
+	if err := stream.SetPanes(&excelize.Panes{
+		Freeze:      true,
+		Split:       false,
+		XSplit:      0,
+		YSplit:      1,
+		TopLeftCell: "A2",
+		ActivePane:  "bottomLeft",
+		Selection: []excelize.Selection{
+			{SQRef: "A2", ActiveCell: "A2", Pane: "bottomLeft"},
+		},
+	}); err != nil {
+		return nil, err
+	}
+	for _, width := range []struct {
+		start int
+		end   int
+		value float64
+	}{
+		{1, 1, 13},
+		{2, 6, 16},
+		{7, 7, 34},
+		{8, 11, 18},
+		{12, 15, 15},
+		{16, 16, 12},
+		{17, len(headers), 19},
+	} {
+		if err := stream.SetColWidth(width.start, width.end, width.value); err != nil {
+			return nil, err
+		}
+	}
 	headerCells := make([]interface{}, len(headers))
 	for i := range headers {
-		headerCells[i] = excelize.Cell{StyleID: headerStyle, Value: headers[i]}
+		style := normalHeaderStyle
+		switch {
+		case i >= 16 && i <= 21:
+			style = originalHeaderStyle
+		case i == 22:
+			style = ratioHeaderStyle
+		case i >= 23 && i <= 28:
+			style = adjustedHeaderStyle
+		case i >= 29:
+			style = unitHeaderStyle
+		}
+		headerCells[i] = excelize.Cell{StyleID: style, Value: headers[i]}
 	}
 	if err := stream.SetRow("A1", headerCells, excelize.RowOpts{Height: 24}); err != nil {
 		return nil, err
@@ -222,8 +281,15 @@ func createBillingReportWorkbook(filters model.BillingReportFilters) (*excelize.
 		if row.GroupRatioKnown {
 			ratio = row.GroupRatio.InexactFloat64()
 		}
+		unitPrice := func(value interface{}) interface{} {
+			if !row.PricingBreakdownKnown {
+				return ""
+			}
+			return excelize.Cell{StyleID: moneyStyle, Value: value}
+		}
 		values := []interface{}{
 			row.BillDate, row.Username, row.UserGroup, row.ThirdPartyGroup, row.ChannelTag, row.ChannelName, row.UpstreamUrl, row.ModelName, row.TokenName,
+			row.BillingMode, row.MatchedTier,
 			row.InputTokens, row.OutputTokens, row.CacheReadTokens, row.CacheWriteTokens, row.CallCount,
 			excelize.Cell{StyleID: moneyStyle, Value: row.OriginalInput.InexactFloat64()},
 			excelize.Cell{StyleID: moneyStyle, Value: row.OriginalOutput.InexactFloat64()},
@@ -238,14 +304,10 @@ func createBillingReportWorkbook(filters model.BillingReportFilters) (*excelize.
 			excelize.Cell{StyleID: moneyStyle, Value: row.AdjustedCacheWrite.InexactFloat64()},
 			excelize.Cell{StyleID: moneyStyle, Value: row.AdjustedOther.InexactFloat64()},
 			excelize.Cell{StyleID: moneyStyle, Value: row.AdjustedTotal.InexactFloat64()},
-			excelize.Cell{StyleID: moneyStyle, Value: row.OriginalInputUnit.InexactFloat64()},
-			excelize.Cell{StyleID: moneyStyle, Value: row.OriginalOutputUnit.InexactFloat64()},
-			excelize.Cell{StyleID: moneyStyle, Value: row.OriginalCacheReadUnit.InexactFloat64()},
-			excelize.Cell{StyleID: moneyStyle, Value: row.OriginalCacheWriteUnit.InexactFloat64()},
-			excelize.Cell{StyleID: moneyStyle, Value: row.AdjustedInputUnit.InexactFloat64()},
-			excelize.Cell{StyleID: moneyStyle, Value: row.AdjustedOutputUnit.InexactFloat64()},
-			excelize.Cell{StyleID: moneyStyle, Value: row.AdjustedCacheReadUnit.InexactFloat64()},
-			excelize.Cell{StyleID: moneyStyle, Value: row.AdjustedCacheWriteUnit.InexactFloat64()},
+			unitPrice(row.OriginalInputUnit.InexactFloat64()),
+			unitPrice(row.OriginalOutputUnit.InexactFloat64()),
+			unitPrice(row.OriginalCacheReadUnit.InexactFloat64()),
+			unitPrice(row.OriginalCacheWriteUnit.InexactFloat64()),
 		}
 		cell, _ := excelize.CoordinatesToCellName(1, index+2)
 		if err := stream.SetRow(cell, values); err != nil {
@@ -257,25 +319,21 @@ func createBillingReportWorkbook(filters model.BillingReportFilters) (*excelize.
 	if err != nil {
 		return nil, err
 	}
-	if err := stream.Flush(); err != nil {
-		return nil, err
+	lastColumn, _ := excelize.ColumnNumberToName(len(headers))
+	lastRow := index + 1
+	if lastRow < 2 {
+		lastRow = 2
 	}
-	if err := file.SetPanes(sheet, &excelize.Panes{
-		Freeze:      true,
-		Split:       false,
-		XSplit:      0,
-		YSplit:      1,
-		TopLeftCell: "A2",
-		ActivePane:  "bottomLeft",
+	showRowStripes := false
+	if err := stream.AddTable(&excelize.Table{
+		Range:          fmt.Sprintf("A1:%s%d", lastColumn, lastRow),
+		Name:           "BillingUsage",
+		ShowRowStripes: &showRowStripes,
 	}); err != nil {
 		return nil, err
 	}
-	lastColumn, _ := excelize.ColumnNumberToName(len(headers))
-	if err := file.AutoFilter(sheet, "A1:"+lastColumn+"1", nil); err != nil {
+	if err := stream.Flush(); err != nil {
 		return nil, err
 	}
-	_ = file.SetColWidth(sheet, "A", "F", 16)
-	_ = file.SetColWidth(sheet, "G", "G", 34)
-	_ = file.SetColWidth(sheet, "H", lastColumn, 18)
 	return file, nil
 }

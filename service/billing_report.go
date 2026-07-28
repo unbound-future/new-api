@@ -2,6 +2,7 @@ package service
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -65,6 +67,10 @@ type billingLogPricing struct {
 	CacheWriteTokens1h   int64
 	ModelPrice           float64
 	BillingMode          string
+	MatchedTier          string
+	UsageSemantic        string
+	TierPrices           billingexpr.TierUnitPrices
+	TierPricesKnown      bool
 	Snapshot             billingReportSnapshot
 }
 
@@ -569,14 +575,26 @@ func billingRowFromLog(log *model.Log, channel billingChannelSnapshot, currentUs
 	}
 
 	inputTokens := int64(log.PromptTokens)
-	if pricing.CacheReadTokens+pricing.CacheWriteTokens > 0 {
-		other, _ := common.StrToMap(log.Other)
-		semantic := stringValue(other["usage_semantic"])
-		if semantic != "anthropic" {
-			inputTokens -= pricing.CacheReadTokens + pricing.CacheWriteTokens
-			if inputTokens < 0 {
-				inputTokens = 0
+	if pricing.UsageSemantic != "anthropic" {
+		if pricing.BillingMode == "tiered_expr" && pricing.TierPricesKnown {
+			if pricing.TierPrices.UsedVars["cr"] {
+				inputTokens -= pricing.CacheReadTokens
 			}
+			if pricing.CacheWriteTokens5m > 0 || pricing.CacheWriteTokens1h > 0 {
+				if pricing.TierPrices.UsedVars["cc"] {
+					inputTokens -= pricing.CacheWriteTokens5m
+				}
+				if pricing.TierPrices.UsedVars["cc1h"] {
+					inputTokens -= pricing.CacheWriteTokens1h
+				}
+			} else if pricing.TierPrices.UsedVars["cc"] {
+				inputTokens -= pricing.CacheWriteTokens
+			}
+		} else {
+			inputTokens -= pricing.CacheReadTokens + pricing.CacheWriteTokens
+		}
+		if inputTokens < 0 {
+			inputTokens = 0
 		}
 	}
 
@@ -590,6 +608,25 @@ func billingRowFromLog(log *model.Log, channel billingChannelSnapshot, currentUs
 	cacheWrite5mUnit := inputUnit.Mul(decimal.NewFromFloat(pricing.CacheCreationRatio5m))
 	cacheWrite1hUnit := inputUnit.Mul(decimal.NewFromFloat(pricing.CacheCreationRatio1h))
 	cacheWriteUnit := inputUnit.Mul(decimal.NewFromFloat(pricing.CacheCreationRatio))
+	pricingBreakdownKnown := pricing.BillingMode == "token"
+	if pricing.BillingMode == "tiered_expr" {
+		pricingBreakdownKnown = pricing.TierPricesKnown
+		if pricingBreakdownKnown {
+			inputUnit = decimal.NewFromFloat(pricing.TierPrices.Input)
+			outputUnit = decimal.NewFromFloat(pricing.TierPrices.Output)
+			cacheReadUnit = decimal.NewFromFloat(pricing.TierPrices.CacheRead)
+			cacheWrite5mUnit = decimal.NewFromFloat(pricing.TierPrices.CacheWrite)
+			cacheWrite1hUnit = decimal.NewFromFloat(pricing.TierPrices.CacheWrite1h)
+			cacheWriteUnit = cacheWrite5mUnit
+		} else {
+			inputUnit = decimal.Zero
+			outputUnit = decimal.Zero
+			cacheReadUnit = decimal.Zero
+			cacheWrite5mUnit = decimal.Zero
+			cacheWrite1hUnit = decimal.Zero
+			cacheWriteUnit = decimal.Zero
+		}
+	}
 
 	originalInput := decimal.NewFromInt(inputTokens).Mul(inputUnit).Div(million)
 	originalOutput := decimal.NewFromInt(int64(log.CompletionTokens)).Mul(outputUnit).Div(million)
@@ -645,6 +682,8 @@ func billingRowFromLog(log *model.Log, channel billingChannelSnapshot, currentUs
 		strconv.Itoa(log.TokenId),
 		log.TokenName,
 		pricing.BillingMode,
+		pricing.MatchedTier,
+		strconv.FormatBool(pricingBreakdownKnown),
 		strconv.FormatBool(pricing.GroupRatioKnown),
 		groupRatio.String(),
 		inputUnit.String(),
@@ -669,6 +708,8 @@ func billingRowFromLog(log *model.Log, channel billingChannelSnapshot, currentUs
 		TokenId:                log.TokenId,
 		TokenName:              log.TokenName,
 		BillingMode:            pricing.BillingMode,
+		MatchedTier:            pricing.MatchedTier,
+		PricingBreakdownKnown:  pricingBreakdownKnown,
 		GroupRatio:             groupRatio,
 		GroupRatioKnown:        pricing.GroupRatioKnown,
 		InputTokens:            inputTokens,
@@ -755,6 +796,17 @@ func parseBillingLogPricing(otherText string) billingLogPricing {
 			pricing.BillingMode = "fixed"
 		} else {
 			pricing.BillingMode = "token"
+		}
+	}
+	pricing.MatchedTier = stringValue(other["matched_tier"])
+	pricing.UsageSemantic = stringValue(other["usage_semantic"])
+	if pricing.BillingMode == "tiered_expr" && pricing.MatchedTier != "" {
+		encodedExpression := stringValue(other["expr_b64"])
+		if decodedExpression, decodeErr := base64.StdEncoding.DecodeString(encodedExpression); decodeErr == nil {
+			pricing.TierPrices, pricing.TierPricesKnown = billingexpr.ExtractTierUnitPrices(
+				string(decodedExpression),
+				pricing.MatchedTier,
+			)
 		}
 	}
 	if snapshot, ok := other["billing_report"].(map[string]interface{}); ok {

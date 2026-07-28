@@ -34,6 +34,8 @@ export interface BillingReportRow {
   token_id: number
   token_name: string
   billing_mode: string
+  matched_tier: string
+  pricing_breakdown_known: boolean
   group_ratio: DecimalValue
   group_ratio_known: boolean
   input_tokens: number

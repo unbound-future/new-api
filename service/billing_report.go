@@ -627,6 +627,14 @@ func billingRowFromLog(log *model.Log, channel billingChannelSnapshot, currentUs
 			cacheWriteUnit = decimal.Zero
 		}
 	}
+	if !pricingBreakdownKnown {
+		inputUnit = decimal.Zero
+		outputUnit = decimal.Zero
+		cacheReadUnit = decimal.Zero
+		cacheWrite5mUnit = decimal.Zero
+		cacheWrite1hUnit = decimal.Zero
+		cacheWriteUnit = decimal.Zero
+	}
 
 	originalInput := decimal.NewFromInt(inputTokens).Mul(inputUnit).Div(million)
 	originalOutput := decimal.NewFromInt(int64(log.CompletionTokens)).Mul(outputUnit).Div(million)

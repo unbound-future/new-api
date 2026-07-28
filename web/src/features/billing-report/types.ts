@@ -36,6 +36,7 @@ export interface BillingReportRow {
   billing_mode: string
   matched_tier: string
   pricing_breakdown_known: boolean
+  cache_write_unit_known: boolean
   group_ratio: DecimalValue
   group_ratio_known: boolean
   input_tokens: number

@@ -281,8 +281,8 @@ func createBillingReportWorkbook(filters model.BillingReportFilters) (*excelize.
 		if row.GroupRatioKnown {
 			ratio = row.GroupRatio.InexactFloat64()
 		}
-		unitPrice := func(value interface{}) interface{} {
-			if !row.PricingBreakdownKnown {
+		unitPrice := func(value interface{}, known bool) interface{} {
+			if !known {
 				return ""
 			}
 			return excelize.Cell{StyleID: moneyStyle, Value: value}
@@ -304,10 +304,10 @@ func createBillingReportWorkbook(filters model.BillingReportFilters) (*excelize.
 			excelize.Cell{StyleID: moneyStyle, Value: row.AdjustedCacheWrite.InexactFloat64()},
 			excelize.Cell{StyleID: moneyStyle, Value: row.AdjustedOther.InexactFloat64()},
 			excelize.Cell{StyleID: moneyStyle, Value: row.AdjustedTotal.InexactFloat64()},
-			unitPrice(row.OriginalInputUnit.InexactFloat64()),
-			unitPrice(row.OriginalOutputUnit.InexactFloat64()),
-			unitPrice(row.OriginalCacheReadUnit.InexactFloat64()),
-			unitPrice(row.OriginalCacheWriteUnit.InexactFloat64()),
+			unitPrice(row.OriginalInputUnit.InexactFloat64(), row.PricingBreakdownKnown),
+			unitPrice(row.OriginalOutputUnit.InexactFloat64(), row.PricingBreakdownKnown),
+			unitPrice(row.OriginalCacheReadUnit.InexactFloat64(), row.PricingBreakdownKnown),
+			unitPrice(row.OriginalCacheWriteUnit.InexactFloat64(), row.PricingBreakdownKnown && row.CacheWriteUnitKnown),
 		}
 		cell, _ := excelize.CoordinatesToCellName(1, index+2)
 		if err := stream.SetRow(cell, values); err != nil {

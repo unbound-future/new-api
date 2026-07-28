@@ -36,6 +36,8 @@ type BillingReportDaily struct {
 	TokenId                int             `json:"token_id" gorm:"index"`
 	TokenName              string          `json:"token_name" gorm:"size:191"`
 	BillingMode            string          `json:"billing_mode" gorm:"size:32"`
+	MatchedTier            string          `json:"matched_tier" gorm:"size:191"`
+	PricingBreakdownKnown  bool            `json:"pricing_breakdown_known"`
 	GroupRatio             decimal.Decimal `json:"group_ratio" gorm:"type:decimal(24,12)"`
 	GroupRatioKnown        bool            `json:"group_ratio_known"`
 	InputTokens            int64           `json:"input_tokens"`

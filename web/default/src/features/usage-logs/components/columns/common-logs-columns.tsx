@@ -437,7 +437,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             </button>
           )
         },
-        meta: { label: t('User'), mobileHidden: true },
+        meta: { label: t('User') },
       }
     )
   }
@@ -629,7 +629,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </div>
         )
       },
-      meta: { label: t('Timing'), mobileHidden: true },
+      meta: { label: t('Timing') },
     },
 
     {

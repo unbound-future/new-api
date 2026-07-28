@@ -190,3 +190,32 @@ func TestBillingReportCustomTieredPricingFallsBackToDifference(t *testing.T) {
 	require.True(t, row.OriginalOther.Equal(row.OriginalTotal))
 	require.True(t, row.AdjustedOther.Equal(row.AdjustedTotal))
 }
+
+func TestBillingReportFixedPriceFallsBackToDifference(t *testing.T) {
+	log := model.Log{
+		CreatedAt:        time.Date(2026, 7, 28, 12, 0, 0, 0, billingReportLocation).Unix(),
+		Type:             model.LogTypeConsume,
+		Quota:            1000,
+		PromptTokens:     100,
+		CompletionTokens: 20,
+		Other: common.MapToJsonStr(map[string]interface{}{
+			"model_ratio": 99,
+			"group_ratio": 2,
+			"billing_mode": "fixed",
+			"model_price":  0.005,
+			"billing_report": map[string]interface{}{
+				"quota_after_group":  1000,
+				"quota_before_group": 500,
+			},
+		}),
+	}
+
+	row := billingRowFromLog(&log, billingChannelSnapshot{}, "")
+	require.False(t, row.PricingBreakdownKnown)
+	require.True(t, row.OriginalInputUnit.IsZero())
+	require.True(t, row.OriginalOutputUnit.IsZero())
+	require.True(t, row.OriginalInput.IsZero())
+	require.True(t, row.OriginalOutput.IsZero())
+	require.True(t, row.OriginalOther.Equal(row.OriginalTotal))
+	require.True(t, row.AdjustedOther.Equal(row.AdjustedTotal))
+}

@@ -96,7 +96,12 @@ function Breakdown({
               {money(amount(component.key))}
             </div>
             <div className='text-muted-foreground mt-0.5 font-mono text-xs tabular-nums'>
-              {unitPrice(unit(component.key), row.pricing_breakdown_known)}
+              {unitPrice(
+                unit(component.key),
+                row.pricing_breakdown_known &&
+                  (component.key !== 'cache_write' ||
+                    row.cache_write_unit_known)
+              )}
             </div>
           </div>
         ))}

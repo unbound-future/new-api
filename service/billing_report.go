@@ -61,6 +61,7 @@ type billingLogPricing struct {
 	CacheCreationRatio   float64
 	CacheCreationRatio5m float64
 	CacheCreationRatio1h float64
+	CacheCreationKnown   bool
 	CacheReadTokens      int64
 	CacheWriteTokens     int64
 	CacheWriteTokens5m   int64
@@ -608,9 +609,17 @@ func billingRowFromLog(log *model.Log, channel billingChannelSnapshot, currentUs
 	cacheWrite5mUnit := inputUnit.Mul(decimal.NewFromFloat(pricing.CacheCreationRatio5m))
 	cacheWrite1hUnit := inputUnit.Mul(decimal.NewFromFloat(pricing.CacheCreationRatio1h))
 	cacheWriteUnit := inputUnit.Mul(decimal.NewFromFloat(pricing.CacheCreationRatio))
-	pricingBreakdownKnown := pricing.BillingMode == "token"
+	pricingBreakdownKnown := pricing.BillingMode == "token" &&
+		(pricing.CacheWriteTokens == 0 || pricing.CacheCreationKnown)
+	cacheWriteUnitKnown := pricing.BillingMode == "token" && pricing.CacheCreationKnown
+	if pricing.BillingMode == "token" && !cacheWriteUnitKnown {
+		cacheWrite5mUnit = decimal.Zero
+		cacheWrite1hUnit = decimal.Zero
+		cacheWriteUnit = decimal.Zero
+	}
 	if pricing.BillingMode == "tiered_expr" {
 		pricingBreakdownKnown = pricing.TierPricesKnown
+		cacheWriteUnitKnown = pricing.TierPricesKnown
 		if pricingBreakdownKnown {
 			inputUnit = decimal.NewFromFloat(pricing.TierPrices.Input)
 			outputUnit = decimal.NewFromFloat(pricing.TierPrices.Output)
@@ -692,6 +701,7 @@ func billingRowFromLog(log *model.Log, channel billingChannelSnapshot, currentUs
 		pricing.BillingMode,
 		pricing.MatchedTier,
 		strconv.FormatBool(pricingBreakdownKnown),
+		strconv.FormatBool(cacheWriteUnitKnown),
 		strconv.FormatBool(pricing.GroupRatioKnown),
 		groupRatio.String(),
 		inputUnit.String(),
@@ -718,6 +728,7 @@ func billingRowFromLog(log *model.Log, channel billingChannelSnapshot, currentUs
 		BillingMode:            pricing.BillingMode,
 		MatchedTier:            pricing.MatchedTier,
 		PricingBreakdownKnown:  pricingBreakdownKnown,
+		CacheWriteUnitKnown:    cacheWriteUnitKnown,
 		GroupRatio:             groupRatio,
 		GroupRatioKnown:        pricing.GroupRatioKnown,
 		InputTokens:            inputTokens,
@@ -775,6 +786,7 @@ func parseBillingLogPricing(otherText string) billingLogPricing {
 	}
 	if value, ok := numberValue(other["cache_creation_ratio"]); ok {
 		pricing.CacheCreationRatio = value
+		pricing.CacheCreationKnown = true
 	}
 	if value, ok := numberValue(other["cache_creation_ratio_5m"]); ok {
 		pricing.CacheCreationRatio5m = value

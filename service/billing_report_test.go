@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/base64"
 	"testing"
 	"time"
 
@@ -111,4 +112,81 @@ func TestBillingReportAggregationAndUpsert(t *testing.T) {
 	require.Equal(t, int64(1700), stored.InputTokens)
 	require.True(t, stored.OriginalTotal.Equal(decimal.RequireFromString("0.00529")))
 	require.True(t, stored.AdjustedTotal.Equal(decimal.RequireFromString("0.01058")))
+}
+
+func TestBillingReportTieredPricingBreakdown(t *testing.T) {
+	expression := `len <= 200000 ? tier("standard", p * 3 + c * 15 + cr * 0.3 + cc * 3.75 + cc1h * 6) : tier("long", p * 6 + c * 22.5)`
+	log := model.Log{
+		CreatedAt:        time.Date(2026, 7, 28, 12, 0, 0, 0, billingReportLocation).Unix(),
+		Type:             model.LogTypeConsume,
+		Username:         "tiered-user",
+		TokenName:        "tiered-token",
+		ModelName:        "tiered-model",
+		Quota:            6368,
+		PromptTokens:     1175,
+		CompletionTokens: 200,
+		Group:            "tiered-group",
+		Other: common.MapToJsonStr(map[string]interface{}{
+			"group_ratio":              2,
+			"billing_mode":             "tiered_expr",
+			"matched_tier":             "standard",
+			"expr_b64":                 base64.StdEncoding.EncodeToString([]byte(expression)),
+			"cache_tokens":             100,
+			"cache_creation_tokens_5m": 50,
+			"cache_creation_tokens_1h": 25,
+			"cache_write_tokens":       75,
+			"usage_semantic":           "openai",
+			"billing_report": map[string]interface{}{
+				"quota_after_group":  6368,
+				"quota_before_group": 3183.75,
+			},
+		}),
+	}
+
+	row := billingRowFromLog(&log, billingChannelSnapshot{}, "")
+	require.True(t, row.PricingBreakdownKnown)
+	require.Equal(t, "standard", row.MatchedTier)
+	require.Equal(t, int64(1000), row.InputTokens)
+	require.Equal(t, int64(75), row.CacheWriteTokens)
+	require.True(t, row.OriginalInputUnit.Equal(decimal.RequireFromString("3")))
+	require.True(t, row.OriginalOutputUnit.Equal(decimal.RequireFromString("15")))
+	require.True(t, row.OriginalCacheReadUnit.Equal(decimal.RequireFromString("0.3")))
+	require.True(t, row.OriginalCacheWriteUnit.Equal(decimal.RequireFromString("4.5")))
+	require.True(t, row.OriginalInput.Equal(decimal.RequireFromString("0.003")))
+	require.True(t, row.OriginalOutput.Equal(decimal.RequireFromString("0.003")))
+	require.True(t, row.OriginalCacheRead.Equal(decimal.RequireFromString("0.00003")))
+	require.True(t, row.OriginalCacheWrite.Equal(decimal.RequireFromString("0.0003375")))
+	require.True(t, row.OriginalTotal.Equal(decimal.RequireFromString("0.0063675")))
+	require.True(t, row.OriginalOther.IsZero())
+	require.True(t, row.AdjustedInput.Add(row.AdjustedOutput).
+		Add(row.AdjustedCacheRead).Add(row.AdjustedCacheWrite).
+		Add(row.AdjustedOther).Equal(row.AdjustedTotal))
+}
+
+func TestBillingReportCustomTieredPricingFallsBackToDifference(t *testing.T) {
+	expression := `tier("custom", p * 2 + img * 5)`
+	log := model.Log{
+		CreatedAt:        time.Date(2026, 7, 28, 12, 0, 0, 0, billingReportLocation).Unix(),
+		Type:             model.LogTypeConsume,
+		Quota:            500,
+		PromptTokens:     100,
+		CompletionTokens: 20,
+		Other: common.MapToJsonStr(map[string]interface{}{
+			"group_ratio":  1,
+			"billing_mode": "tiered_expr",
+			"matched_tier": "custom",
+			"expr_b64":     base64.StdEncoding.EncodeToString([]byte(expression)),
+			"billing_report": map[string]interface{}{
+				"quota_after_group":  500,
+				"quota_before_group": 500,
+			},
+		}),
+	}
+
+	row := billingRowFromLog(&log, billingChannelSnapshot{}, "")
+	require.False(t, row.PricingBreakdownKnown)
+	require.True(t, row.OriginalInput.IsZero())
+	require.True(t, row.OriginalOutput.IsZero())
+	require.True(t, row.OriginalOther.Equal(row.OriginalTotal))
+	require.True(t, row.AdjustedOther.Equal(row.AdjustedTotal))
 }

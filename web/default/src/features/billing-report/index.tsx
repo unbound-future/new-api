@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertCircle,
@@ -47,6 +47,7 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Switch } from '@/components/ui/switch'
 import { SectionPageLayout } from '@/components/layout'
+import { getGroups } from '@/features/users/api'
 import {
   exportBillingReport,
   getBillingReport,
@@ -54,6 +55,7 @@ import {
   rebuildBillingReport,
   updateBillingReportAuto,
 } from './api'
+import { BillingGroupCombobox } from './components/billing-group-combobox'
 import { BillingReportTable } from './components/billing-report-table'
 import type {
   BillingReportFilters,
@@ -258,7 +260,7 @@ function SummaryCards({ totals }: { totals?: BillingReportTotals }) {
       note: t('Matched calls in current filters'),
     },
     {
-      label: t('Tokens'),
+      label: t('Billing token total'),
       value: countFormatter.format(totalTokens),
       note: t('Input, output and cache tokens'),
     },
@@ -295,6 +297,7 @@ export function BillingReport() {
     useState<BillingReportFilters>(initialFilters)
   const [filters, setFilters] = useState<BillingReportFilters>(initialFilters)
   const [page, setPage] = useState(1)
+  const [pageInput, setPageInput] = useState('1')
   const [exporting, setExporting] = useState(false)
 
   const statusQuery = useQuery({
@@ -303,6 +306,12 @@ export function BillingReport() {
     refetchInterval: 5000,
   })
   const enabled = statusQuery.data?.enabled === true
+  const groupsQuery = useQuery({
+    queryKey: ['billing-report-groups'],
+    queryFn: getGroups,
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  })
   const reportQuery = useQuery({
     queryKey: ['billing-report', filters, page, pageSize],
     queryFn: () => getBillingReport(filters, page, pageSize),
@@ -373,6 +382,20 @@ export function BillingReport() {
     1,
     Math.ceil((reportQuery.data?.total || 0) / pageSize)
   )
+  useEffect(() => {
+    setPageInput(String(page))
+  }, [page])
+
+  const jumpToPage = () => {
+    const requestedPage = Number.parseInt(pageInput, 10)
+    if (!Number.isFinite(requestedPage)) {
+      setPageInput(String(page))
+      return
+    }
+    const targetPage = Math.min(totalPages, Math.max(1, requestedPage))
+    setPage(targetPage)
+    setPageInput(String(targetPage))
+  }
 
   return (
     <SectionPageLayout>
@@ -443,11 +466,9 @@ export function BillingReport() {
                         [
                           ['username', 'Customer'],
                           ['model_name', 'Model'],
-                          ['user_group', 'User group'],
-                          ['third_party_group', 'Third-party group'],
                           ['channel_name', 'Channel name'],
                           ['channel_tag', 'Channel tag'],
-                          ['token_name', 'Token name'],
+                          ['token_name', 'Billing token name'],
                           ['upstream_url', 'Upstream URL'],
                         ] as const
                       ).map(([key, label]) => (
@@ -466,6 +487,20 @@ export function BillingReport() {
                           />
                         </div>
                       ))}
+                      <div className='space-y-1.5'>
+                        <Label htmlFor='billing-third_party_group'>
+                          {t('Billing group')}
+                        </Label>
+                        <BillingGroupCombobox
+                          id='billing-third_party_group'
+                          groups={groupsQuery.data?.data || []}
+                          value={draftFilters.third_party_group}
+                          disabled={groupsQuery.isFetching}
+                          onValueChange={(value) =>
+                            updateDraft('third_party_group', value)
+                          }
+                        />
+                      </div>
                     </div>
                     <div className='flex flex-wrap items-center gap-2 border-t pt-4'>
                       <Button type='button' onClick={applyFilters}>
@@ -564,7 +599,7 @@ export function BillingReport() {
                     <div className='text-muted-foreground text-xs'>
                       {t('Page')} {page} / {totalPages}
                     </div>
-                    <div className='flex items-center gap-2'>
+                    <div className='flex flex-wrap items-center justify-end gap-2'>
                       <Button
                         type='button'
                         size='sm'
@@ -573,7 +608,7 @@ export function BillingReport() {
                         onClick={() => setPage((current) => current - 1)}
                       >
                         <ChevronLeft />
-                        {t('Previous')}
+                        {t('Billing previous page')}
                       </Button>
                       <Button
                         type='button'
@@ -582,9 +617,39 @@ export function BillingReport() {
                         disabled={page >= totalPages || reportQuery.isFetching}
                         onClick={() => setPage((current) => current + 1)}
                       >
-                        {t('Next')}
+                        {t('Billing next page')}
                         <ChevronRight />
                       </Button>
+                      <div className='ml-1 flex items-center gap-1.5'>
+                        <Label
+                          htmlFor='billing-page-jump'
+                          className='text-muted-foreground text-xs'
+                        >
+                          {t('Billing jump to page')}
+                        </Label>
+                        <Input
+                          id='billing-page-jump'
+                          type='number'
+                          min={1}
+                          max={totalPages}
+                          inputMode='numeric'
+                          className='h-8 w-20 font-mono tabular-nums'
+                          value={pageInput}
+                          onChange={(event) => setPageInput(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') jumpToPage()
+                          }}
+                        />
+                        <Button
+                          type='button'
+                          size='sm'
+                          variant='secondary'
+                          disabled={reportQuery.isFetching}
+                          onClick={jumpToPage}
+                        >
+                          {t('Billing jump')}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </CardContent>

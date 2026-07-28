@@ -50,7 +50,11 @@ function money(value: DecimalValue | undefined): string {
   })
 }
 
-function unitPrice(value: DecimalValue | undefined): string {
+function unitPrice(
+  value: DecimalValue | undefined,
+  pricingBreakdownKnown: boolean
+): string {
+  if (!pricingBreakdownKnown) return '—'
   return `${money(value)} / M`
 }
 
@@ -92,14 +96,14 @@ function Breakdown({
               {money(amount(component.key))}
             </div>
             <div className='text-muted-foreground mt-0.5 font-mono text-xs tabular-nums'>
-              {unitPrice(unit(component.key))}
+              {unitPrice(unit(component.key), row.pricing_breakdown_known)}
             </div>
           </div>
         ))}
       </div>
       <div className='text-muted-foreground flex flex-wrap gap-x-6 gap-y-1 text-xs'>
         <span>
-          {t('Other')}:&nbsp;
+          {t('Billing other or difference')}:&nbsp;
           <span className='text-foreground font-mono'>
             {money(amount('other'))}
           </span>
@@ -203,6 +207,11 @@ export function BillingReportTable({
                     <div className='text-muted-foreground max-w-52 truncate text-xs'>
                       {row.token_name || '—'}
                     </div>
+                    {row.matched_tier && (
+                      <div className='text-muted-foreground max-w-52 truncate text-xs'>
+                        {t('Billing matched tier')}: {row.matched_tier}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className='max-w-48 truncate'>
@@ -261,12 +270,24 @@ export function BillingReportTable({
                       </div>
                       <div className='text-muted-foreground mt-4 flex flex-wrap gap-x-6 gap-y-1 border-t pt-3 text-xs'>
                         <span>
-                          {t('Billing mode')}: {row.billing_mode || '—'}
+                          {t('Billing billing mode')}: {row.billing_mode || '—'}
+                        </span>
+                        <span>
+                          {t('Billing matched tier')}: {row.matched_tier || '—'}
+                        </span>
+                        <span>
+                          {t('Billing itemized unit prices')}:{' '}
+                          {row.pricing_breakdown_known
+                            ? t('Billing price confirmed')
+                            : t('Billing price unconfirmed')}
                         </span>
                         <span>
                           {t('Upstream')}: {row.upstream_url || '—'}
                         </span>
                       </div>
+                      <p className='text-muted-foreground mt-2 text-xs'>
+                        {t('Billing difference fee explanation')}
+                      </p>
                     </TableCell>
                   </TableRow>
                 )}

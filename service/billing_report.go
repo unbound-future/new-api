@@ -191,7 +191,6 @@ func runBillingReportWorkerOnce() {
 		setBillingReportError(err)
 		return
 	}
-	hadJob := job != nil
 	if job != nil {
 		if err := processBillingReportJobBatch(owner, job); err != nil {
 			failBillingReportJob(job.Id, err)
@@ -215,12 +214,8 @@ func runBillingReportWorkerOnce() {
 			return
 		}
 	}
-	if hadJob {
-		return
-	}
-	if err := processBillingReportHistoryBatch(owner); err != nil {
-		setBillingReportError(err)
-	}
+	// Historical dates are rebuilt only through explicit billing report jobs.
+	// Live synchronization above continues to aggregate newly created logs.
 }
 
 func initializeBillingReportState(owner string) error {

@@ -41,6 +41,20 @@ type Log struct {
 	Other             string `json:"other"`
 }
 
+func applyExplicitLogTextFilter(tx *gorm.DB, column string, value string) (*gorm.DB, error) {
+	if value == "" {
+		return tx, nil
+	}
+	if strings.Contains(value, "%") {
+		pattern, err := sanitizeLikePattern(value)
+		if err != nil {
+			return nil, err
+		}
+		return tx.Where(column+" LIKE ? ESCAPE '!'", pattern), nil
+	}
+	return tx.Where(column+" = ?", value), nil
+}
+
 // don't use iota, avoid change log type value
 const (
 	LogTypeUnknown = 0
@@ -312,9 +326,15 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 		tx = LOG_DB.Where("logs.type = ?", logType)
 	}
 
-	tx = applyLogContainsFilter(tx, "logs.model_name", modelName)
-	tx = applyLogContainsFilter(tx, "logs.username", username)
-	tx = applyLogContainsFilter(tx, "logs.token_name", tokenName)
+	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
+		return nil, 0, err
+	}
+	if tx, err = applyExplicitLogTextFilter(tx, "logs.username", username); err != nil {
+		return nil, 0, err
+	}
+	if tokenName != "" {
+		tx = tx.Where("logs.token_name = ?", tokenName)
+	}
 	if requestId != "" {
 		tx = tx.Where("logs.request_id = ?", requestId)
 	}
@@ -395,8 +415,12 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 		tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
 	}
 
-	tx = applyLogContainsFilter(tx, "logs.model_name", modelName)
-	tx = applyLogContainsFilter(tx, "logs.token_name", tokenName)
+	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
+		return nil, 0, err
+	}
+	if tokenName != "" {
+		tx = tx.Where("logs.token_name = ?", tokenName)
+	}
 	if requestId != "" {
 		tx = tx.Where("logs.request_id = ?", requestId)
 	}
@@ -435,24 +459,6 @@ type Stat struct {
 	Tpm        int `json:"tpm"`
 }
 
-func logContainsPattern(input string) (string, bool) {
-	input = strings.TrimSpace(input)
-	if input == "" {
-		return "", false
-	}
-
-	replacer := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_")
-	return "%" + replacer.Replace(input) + "%", true
-}
-
-func applyLogContainsFilter(tx *gorm.DB, column string, value string) *gorm.DB {
-	pattern, ok := logContainsPattern(value)
-	if !ok {
-		return tx
-	}
-	return tx.Where(column+" LIKE ? ESCAPE '!'", pattern)
-}
-
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
 
@@ -461,21 +467,35 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	// 总 RPM 包含最近 60 秒内的成功请求和错误请求。
 	totalRpmQuery := LOG_DB.Table("logs").Select("count(*) total_rpm")
 
-	tx = applyLogContainsFilter(tx, "username", username)
-	rpmTpmQuery = applyLogContainsFilter(rpmTpmQuery, "username", username)
-	totalRpmQuery = applyLogContainsFilter(totalRpmQuery, "username", username)
-	tx = applyLogContainsFilter(tx, "token_name", tokenName)
-	rpmTpmQuery = applyLogContainsFilter(rpmTpmQuery, "token_name", tokenName)
-	totalRpmQuery = applyLogContainsFilter(totalRpmQuery, "token_name", tokenName)
+	if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
+		return stat, err
+	}
+	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "username", username); err != nil {
+		return stat, err
+	}
+	if totalRpmQuery, err = applyExplicitLogTextFilter(totalRpmQuery, "username", username); err != nil {
+		return stat, err
+	}
+	if tokenName != "" {
+		tx = tx.Where("token_name = ?", tokenName)
+		rpmTpmQuery = rpmTpmQuery.Where("token_name = ?", tokenName)
+		totalRpmQuery = totalRpmQuery.Where("token_name = ?", tokenName)
+	}
 	if startTimestamp != 0 {
 		tx = tx.Where("created_at >= ?", startTimestamp)
 	}
 	if endTimestamp != 0 {
 		tx = tx.Where("created_at <= ?", endTimestamp)
 	}
-	tx = applyLogContainsFilter(tx, "model_name", modelName)
-	rpmTpmQuery = applyLogContainsFilter(rpmTpmQuery, "model_name", modelName)
-	totalRpmQuery = applyLogContainsFilter(totalRpmQuery, "model_name", modelName)
+	if tx, err = applyExplicitLogTextFilter(tx, "model_name", modelName); err != nil {
+		return stat, err
+	}
+	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "model_name", modelName); err != nil {
+		return stat, err
+	}
+	if totalRpmQuery, err = applyExplicitLogTextFilter(totalRpmQuery, "model_name", modelName); err != nil {
+		return stat, err
+	}
 	if channel != 0 {
 		tx = tx.Where("channel_id = ?", channel)
 		rpmTpmQuery = rpmTpmQuery.Where("channel_id = ?", channel)

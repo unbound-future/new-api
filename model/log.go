@@ -459,13 +459,14 @@ type Stat struct {
 	Tpm        int `json:"tpm"`
 }
 
-func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
-	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
+func SumUsedQuota(ctx context.Context, logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
+	logDB := LOG_DB.WithContext(ctx)
+	tx := logDB.Table("logs").Select("sum(quota) quota")
 
 	// 为rpm和tpm创建单独的查询
-	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")
+	rpmTpmQuery := logDB.Table("logs").Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")
 	// 总 RPM 包含最近 60 秒内的成功请求和错误请求。
-	totalRpmQuery := LOG_DB.Table("logs").Select("count(*) total_rpm")
+	totalRpmQuery := logDB.Table("logs").Select("count(*) total_rpm")
 
 	if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
 		return stat, err

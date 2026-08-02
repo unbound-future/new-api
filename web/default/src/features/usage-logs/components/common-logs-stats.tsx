@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useIsFetching, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { formatLogQuota } from '@/lib/format'
@@ -51,11 +51,10 @@ export function CommonLogsStats() {
   const isAdmin = useIsAdmin()
   const searchParams = route.useSearch()
   const { sensitiveVisible } = useUsageLogsContext()
-  const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ['usage-logs-stats', isAdmin, searchParams],
-    queryFn: async ({ signal }) => {
+    queryFn: async () => {
       const params = buildApiParams({
         page: 1,
         pageSize: 1,
@@ -65,14 +64,13 @@ export function CommonLogsStats() {
       })
 
       const result = isAdmin
-        ? await getLogStats(params, signal)
-        : await getUserLogStats(params, signal)
+        ? await getLogStats(params)
+        : await getUserLogStats(params)
 
       return result.success
         ? result.data || DEFAULT_LOG_STATS
         : DEFAULT_LOG_STATS
     },
-    enabled: fetchingLogs === 0,
     placeholderData: (previousData) => previousData,
   })
 

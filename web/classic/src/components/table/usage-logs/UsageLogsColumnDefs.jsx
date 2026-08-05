@@ -830,46 +830,6 @@ export const getLogsColumns = ({
       },
     },
     {
-      key: COLUMN_KEYS.IP,
-      title: (
-        <div className='flex items-center gap-1'>
-          {t('IP')}
-          <Tooltip
-            content={t(
-              '只有当用户设置开启IP记录时，才会进行请求和错误类型日志的IP记录',
-            )}
-          >
-            <IconHelpCircle className='text-gray-400 cursor-help' />
-          </Tooltip>
-        </div>
-      ),
-      dataIndex: 'ip',
-      render: (text, record, index) => {
-        const showIp =
-          (record.type === 2 ||
-            record.type === 5 ||
-            (isAdminUser && record.type === 1)) &&
-          text;
-        return showIp ? (
-          <Tooltip content={text}>
-            <span>
-              <Tag
-                color='orange'
-                shape='circle'
-                onClick={(event) => {
-                  copyText(event, text);
-                }}
-              >
-                {text}
-              </Tag>
-            </span>
-          </Tooltip>
-        ) : (
-          <></>
-        );
-      },
-    },
-    {
       key: COLUMN_KEYS.RETRY,
       title: t('重试'),
       dataIndex: 'retry',

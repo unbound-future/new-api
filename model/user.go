@@ -80,7 +80,7 @@ func (user *User) SetAccessToken(token string) {
 }
 
 func (user *User) GetSetting() dto.UserSetting {
-	setting := dto.UserSetting{}
+	setting := dto.UserSetting{RecordIpLog: true}
 	if user.Setting != "" {
 		err := json.Unmarshal([]byte(user.Setting), &setting)
 		if err != nil {

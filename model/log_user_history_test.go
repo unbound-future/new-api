@@ -31,3 +31,30 @@ func TestGetUserLogsOrdersByCreatedAtThenID(t *testing.T) {
 	assert.Equal(t, "newer-low-id", got[1].Content)
 	assert.Equal(t, "older", got[2].Content)
 }
+
+func TestSumUsedQuotaByUserIDIncludesRenamedUserHistory(t *testing.T) {
+	require.NoError(t, DB.Exec("DELETE FROM logs").Error)
+	t.Cleanup(func() {
+		DB.Exec("DELETE FROM logs")
+	})
+
+	logs := []Log{
+		{UserId: 7, Username: "old-name", CreatedAt: 100, Type: LogTypeConsume, Quota: 11},
+		{UserId: 7, Username: "new-name", CreatedAt: 110, Type: LogTypeConsume, Quota: 13},
+		{UserId: 8, Username: "new-name", CreatedAt: 120, Type: LogTypeConsume, Quota: 17},
+		{UserId: 7, Username: "new-name", CreatedAt: 130, Type: LogTypeError, Quota: 19},
+	}
+	require.NoError(t, DB.Create(&logs).Error)
+
+	stat, err := SumUsedQuotaByUserID(LogTypeUnknown, 90, 140, "", 7, "", 0, "")
+	require.NoError(t, err)
+	assert.Equal(t, 24, stat.Quota)
+
+	adminStat, err := SumUsedQuota(LogTypeUnknown, 90, 140, "", "new-name", "", 0, "")
+	require.NoError(t, err)
+	assert.Equal(t, 30, adminStat.Quota)
+}
+
+func TestLogHasSelfStatCoveringIndex(t *testing.T) {
+	require.True(t, DB.Migrator().HasIndex(&Log{}, "idx_logs_user_type_created_at_quota"))
+}

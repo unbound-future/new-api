@@ -19,14 +19,14 @@ import (
 
 type Log struct {
 	Id                int    `json:"id" gorm:"index:idx_created_at_id,priority:2;index:idx_user_id_id,priority:2;index:idx_logs_user_created_at_id,priority:3"`
-	UserId            int    `json:"user_id" gorm:"index;index:idx_user_id_id,priority:1;index:idx_logs_user_created_at_id,priority:1"`
-	CreatedAt         int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:1;index:idx_created_at_type;index:idx_logs_user_created_at_id,priority:2"`
-	Type              int    `json:"type" gorm:"index:idx_created_at_type"`
+	UserId            int    `json:"user_id" gorm:"index;index:idx_user_id_id,priority:1;index:idx_logs_user_created_at_id,priority:1;index:idx_logs_user_type_created_at_quota,priority:1"`
+	CreatedAt         int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:1;index:idx_created_at_type;index:idx_logs_user_created_at_id,priority:2;index:idx_logs_user_type_created_at_quota,priority:3"`
+	Type              int    `json:"type" gorm:"index:idx_created_at_type;index:idx_logs_user_type_created_at_quota,priority:2"`
 	Content           string `json:"content"`
 	Username          string `json:"username" gorm:"index;index:index_username_model_name,priority:2;default:''"`
 	TokenName         string `json:"token_name" gorm:"index;default:''"`
 	ModelName         string `json:"model_name" gorm:"index;index:index_username_model_name,priority:1;default:''"`
-	Quota             int    `json:"quota" gorm:"default:0"`
+	Quota             int    `json:"quota" gorm:"default:0;index:idx_logs_user_type_created_at_quota,priority:4"`
 	PromptTokens      int    `json:"prompt_tokens" gorm:"default:0"`
 	CompletionTokens  int    `json:"completion_tokens" gorm:"default:0"`
 	UseTime           int    `json:"use_time" gorm:"default:0"`
@@ -460,6 +460,14 @@ type Stat struct {
 }
 
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
+	return sumUsedQuota(logType, startTimestamp, endTimestamp, modelName, 0, username, tokenName, channel, group)
+}
+
+func SumUsedQuotaByUserID(logType int, startTimestamp int64, endTimestamp int64, modelName string, userID int, tokenName string, channel int, group string) (stat Stat, err error) {
+	return sumUsedQuota(logType, startTimestamp, endTimestamp, modelName, userID, "", tokenName, channel, group)
+}
+
+func sumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, userID int, username string, tokenName string, channel int, group string) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
 
 	// 为rpm和tpm创建单独的查询
@@ -467,14 +475,20 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	// 总 RPM 包含最近 60 秒内的成功请求和错误请求。
 	totalRpmQuery := LOG_DB.Table("logs").Select("count(*) total_rpm")
 
-	if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
-		return stat, err
-	}
-	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "username", username); err != nil {
-		return stat, err
-	}
-	if totalRpmQuery, err = applyExplicitLogTextFilter(totalRpmQuery, "username", username); err != nil {
-		return stat, err
+	if userID != 0 {
+		tx = tx.Where("user_id = ?", userID)
+		rpmTpmQuery = rpmTpmQuery.Where("user_id = ?", userID)
+		totalRpmQuery = totalRpmQuery.Where("user_id = ?", userID)
+	} else {
+		if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
+			return stat, err
+		}
+		if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "username", username); err != nil {
+			return stat, err
+		}
+		if totalRpmQuery, err = applyExplicitLogTextFilter(totalRpmQuery, "username", username); err != nil {
+			return stat, err
+		}
 	}
 	if tokenName != "" {
 		tx = tx.Where("token_name = ?", tokenName)

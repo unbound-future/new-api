@@ -58,3 +58,13 @@ func TestSumUsedQuotaByUserIDIncludesRenamedUserHistory(t *testing.T) {
 func TestLogHasSelfStatCoveringIndex(t *testing.T) {
 	require.True(t, DB.Migrator().HasIndex(&Log{}, "idx_logs_user_type_created_at_quota"))
 }
+
+func TestShouldForceUserHistoryIndexOnlyForDefaultQuery(t *testing.T) {
+	assert.True(t, shouldForceUserHistoryIndex(LogTypeUnknown, "", "", "", "", ""))
+	assert.False(t, shouldForceUserHistoryIndex(LogTypeConsume, "", "", "", "", ""))
+	assert.False(t, shouldForceUserHistoryIndex(LogTypeUnknown, "gpt-5.6-sol", "", "", "", ""))
+	assert.False(t, shouldForceUserHistoryIndex(LogTypeUnknown, "", "token", "", "", ""))
+	assert.False(t, shouldForceUserHistoryIndex(LogTypeUnknown, "", "", "group", "", ""))
+	assert.False(t, shouldForceUserHistoryIndex(LogTypeUnknown, "", "", "", "request-id", ""))
+	assert.False(t, shouldForceUserHistoryIndex(LogTypeUnknown, "", "", "", "", "upstream-request-id"))
+}

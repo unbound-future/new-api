@@ -44,7 +44,6 @@ import {
   Headphones,
   Monitor,
   Cloud,
-  Globe,
   ShieldCheck,
   UserCog,
   Info,
@@ -496,8 +495,6 @@ export function DetailsDialog(props: DetailsDialogProps) {
     !!other?.expr_b64
   const hasAudioTokens = other?.ws || other?.audio
   const showTiming = isTimingLogType(props.log.type)
-  const showAdminIp =
-    !!props.log.ip && (showTiming || (props.isAdmin && isTopup))
   const adminInfo = other?.admin_info
   const topupAuditFields =
     isTopup && props.isAdmin && adminInfo
@@ -576,10 +573,6 @@ export function DetailsDialog(props: DetailsDialogProps) {
         other?.login_method && {
           label: t('Login Method'),
           value: String(other.login_method),
-        },
-        props.log.ip && {
-          label: t('IP Address'),
-          value: props.log.ip,
         },
         other?.user_agent && {
           label: t('User Agent'),
@@ -686,19 +679,6 @@ export function DetailsDialog(props: DetailsDialogProps) {
             <DetailRow
               label={t('Group')}
               value={props.log.group || other?.group || ''}
-              mono
-            />
-          )}
-
-          {showAdminIp && (
-            <DetailRow
-              label={t('IP Address')}
-              value={
-                <span className='flex items-center gap-1'>
-                  <Globe className='size-3 text-amber-500' aria-hidden='true' />
-                  {props.log.ip}
-                </span>
-              }
               mono
             />
           )}

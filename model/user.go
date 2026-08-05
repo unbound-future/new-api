@@ -156,7 +156,7 @@ func UpdateUserAccessToken(id int, token string) error {
 }
 
 func (user *User) GetSetting() dto.UserSetting {
-	setting := dto.UserSetting{}
+	setting := dto.UserSetting{RecordIpLog: true}
 	if user.Setting != "" {
 		err := common.Unmarshal([]byte(user.Setting), &setting)
 		if err != nil {

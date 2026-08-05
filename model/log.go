@@ -407,10 +407,23 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 
 const logSearchCountLimit = 10000
 
+func shouldForceUserHistoryIndex(logType int, modelName string, tokenName string, group string, requestId string, upstreamRequestId string) bool {
+	return logType == LogTypeUnknown &&
+		modelName == "" &&
+		tokenName == "" &&
+		group == "" &&
+		requestId == "" &&
+		upstreamRequestId == ""
+}
+
 func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
-		tx = LOG_DB.Where("logs.user_id = ?", userId)
+		if LOG_DB.Dialector.Name() == "mysql" && shouldForceUserHistoryIndex(logType, modelName, tokenName, group, requestId, upstreamRequestId) {
+			tx = LOG_DB.Table("logs FORCE INDEX (idx_logs_user_created_at_id)").Where("logs.user_id = ?", userId)
+		} else {
+			tx = LOG_DB.Where("logs.user_id = ?", userId)
+		}
 	} else {
 		tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
 	}

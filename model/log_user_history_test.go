@@ -68,3 +68,12 @@ func TestShouldForceUserHistoryIndexOnlyForDefaultQuery(t *testing.T) {
 	assert.False(t, shouldForceUserHistoryIndex(LogTypeUnknown, "", "", "", "request-id", ""))
 	assert.False(t, shouldForceUserHistoryIndex(LogTypeUnknown, "", "", "", "", "upstream-request-id"))
 }
+
+func TestShouldForceUserStatIndexOnlyForDefaultSelfStat(t *testing.T) {
+	assert.True(t, shouldForceUserStatIndex(7, "", "", 0, ""))
+	assert.False(t, shouldForceUserStatIndex(0, "", "", 0, ""))
+	assert.False(t, shouldForceUserStatIndex(7, "gpt-5.6-sol", "", 0, ""))
+	assert.False(t, shouldForceUserStatIndex(7, "", "token", 0, ""))
+	assert.False(t, shouldForceUserStatIndex(7, "", "", 66, ""))
+	assert.False(t, shouldForceUserStatIndex(7, "", "", 0, "group"))
+}

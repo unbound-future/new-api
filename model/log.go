@@ -480,8 +480,20 @@ func SumUsedQuotaByUserID(logType int, startTimestamp int64, endTimestamp int64,
 	return sumUsedQuota(logType, startTimestamp, endTimestamp, modelName, userID, "", tokenName, channel, group)
 }
 
+func shouldForceUserStatIndex(userID int, modelName string, tokenName string, channel int, group string) bool {
+	return userID != 0 &&
+		modelName == "" &&
+		tokenName == "" &&
+		channel == 0 &&
+		group == ""
+}
+
 func sumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, userID int, username string, tokenName string, channel int, group string) (stat Stat, err error) {
-	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
+	statTable := "logs"
+	if LOG_DB.Dialector.Name() == "mysql" && shouldForceUserStatIndex(userID, modelName, tokenName, channel, group) {
+		statTable = "logs FORCE INDEX (idx_logs_user_type_created_at_quota)"
+	}
+	tx := LOG_DB.Table(statTable).Select("sum(quota) quota")
 
 	// 为rpm和tpm创建单独的查询
 	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")

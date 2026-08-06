@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -186,9 +187,9 @@ func createBillingReportWorkbook(filters model.BillingReportFilters) (*excelize.
 	headers := []interface{}{
 		"日期", "客户", "用户分组", "使用分组", "渠道标签", "渠道名称", "上游地址", "模型", "令牌名称",
 		"计费方式", "命中阶梯", "输入Token", "输出Token", "缓存读Token", "缓存写Token", "调用次数",
-		"倍率前输入价格", "倍率前输出价格", "倍率前缓存读价格", "倍率前缓存写价格", "倍率前其他/差额费用", "倍率前总价",
+		"倍率前总价",
 		"用户/分组倍率",
-		"折算后输入价格", "折算后输出价格", "折算后缓存读价格", "折算后缓存写价格", "折算后其他/差额费用", "折算后实际总价",
+		"折算后实际总价",
 		"输入单价/M", "输出单价/M", "缓存读单价/M", "缓存写单价/M",
 	}
 	newHeaderStyle := func(color string) (int, error) {
@@ -218,10 +219,22 @@ func createBillingReportWorkbook(filters model.BillingReportFilters) (*excelize.
 	if err != nil {
 		return nil, err
 	}
-	moneyFormat := "#,##0.00000000"
-	moneyStyle, err := file.NewStyle(&excelize.Style{CustomNumFmt: &moneyFormat})
+	wholeNumberFormat := "#,##0"
+	wholeNumberStyle, err := file.NewStyle(&excelize.Style{CustomNumFmt: &wholeNumberFormat})
 	if err != nil {
 		return nil, err
+	}
+	decimalNumberFormat := "#,##0.########"
+	decimalNumberStyle, err := file.NewStyle(&excelize.Style{CustomNumFmt: &decimalNumberFormat})
+	if err != nil {
+		return nil, err
+	}
+	numberCell := func(value decimal.Decimal) excelize.Cell {
+		style := decimalNumberStyle
+		if value.Equal(value.Truncate(0)) {
+			style = wholeNumberStyle
+		}
+		return excelize.Cell{StyleID: style, Value: value.InexactFloat64()}
 	}
 	stream, err := file.NewStreamWriter(sheet)
 	if err != nil {
@@ -261,13 +274,13 @@ func createBillingReportWorkbook(filters model.BillingReportFilters) (*excelize.
 	for i := range headers {
 		style := normalHeaderStyle
 		switch {
-		case i >= 16 && i <= 21:
+		case i == 16:
 			style = originalHeaderStyle
-		case i == 22:
+		case i == 17:
 			style = ratioHeaderStyle
-		case i >= 23 && i <= 28:
+		case i == 18:
 			style = adjustedHeaderStyle
-		case i >= 29:
+		case i >= 19:
 			style = unitHeaderStyle
 		}
 		headerCells[i] = excelize.Cell{StyleID: style, Value: headers[i]}
@@ -281,33 +294,23 @@ func createBillingReportWorkbook(filters model.BillingReportFilters) (*excelize.
 		if row.GroupRatioKnown {
 			ratio = row.GroupRatio.InexactFloat64()
 		}
-		unitPrice := func(value interface{}, known bool) interface{} {
+		unitPrice := func(value decimal.Decimal, known bool) interface{} {
 			if !known {
 				return ""
 			}
-			return excelize.Cell{StyleID: moneyStyle, Value: value}
+			return numberCell(value)
 		}
 		values := []interface{}{
 			row.BillDate, row.Username, row.UserGroup, row.ThirdPartyGroup, row.ChannelTag, row.ChannelName, row.UpstreamUrl, row.ModelName, row.TokenName,
 			row.BillingMode, row.MatchedTier,
 			row.InputTokens, row.OutputTokens, row.CacheReadTokens, row.CacheWriteTokens, row.CallCount,
-			excelize.Cell{StyleID: moneyStyle, Value: row.OriginalInput.InexactFloat64()},
-			excelize.Cell{StyleID: moneyStyle, Value: row.OriginalOutput.InexactFloat64()},
-			excelize.Cell{StyleID: moneyStyle, Value: row.OriginalCacheRead.InexactFloat64()},
-			excelize.Cell{StyleID: moneyStyle, Value: row.OriginalCacheWrite.InexactFloat64()},
-			excelize.Cell{StyleID: moneyStyle, Value: row.OriginalOther.InexactFloat64()},
-			excelize.Cell{StyleID: moneyStyle, Value: row.OriginalTotal.InexactFloat64()},
+			numberCell(row.OriginalTotal),
 			ratio,
-			excelize.Cell{StyleID: moneyStyle, Value: row.AdjustedInput.InexactFloat64()},
-			excelize.Cell{StyleID: moneyStyle, Value: row.AdjustedOutput.InexactFloat64()},
-			excelize.Cell{StyleID: moneyStyle, Value: row.AdjustedCacheRead.InexactFloat64()},
-			excelize.Cell{StyleID: moneyStyle, Value: row.AdjustedCacheWrite.InexactFloat64()},
-			excelize.Cell{StyleID: moneyStyle, Value: row.AdjustedOther.InexactFloat64()},
-			excelize.Cell{StyleID: moneyStyle, Value: row.AdjustedTotal.InexactFloat64()},
-			unitPrice(row.OriginalInputUnit.InexactFloat64(), row.PricingBreakdownKnown),
-			unitPrice(row.OriginalOutputUnit.InexactFloat64(), row.PricingBreakdownKnown),
-			unitPrice(row.OriginalCacheReadUnit.InexactFloat64(), row.PricingBreakdownKnown),
-			unitPrice(row.OriginalCacheWriteUnit.InexactFloat64(), row.PricingBreakdownKnown && row.CacheWriteUnitKnown),
+			numberCell(row.AdjustedTotal),
+			unitPrice(row.OriginalInputUnit, row.PricingBreakdownKnown),
+			unitPrice(row.OriginalOutputUnit, row.PricingBreakdownKnown),
+			unitPrice(row.OriginalCacheReadUnit, row.PricingBreakdownKnown),
+			unitPrice(row.OriginalCacheWriteUnit, row.PricingBreakdownKnown && row.CacheWriteUnitKnown),
 		}
 		cell, _ := excelize.CoordinatesToCellName(1, index+2)
 		if err := stream.SetRow(cell, values); err != nil {

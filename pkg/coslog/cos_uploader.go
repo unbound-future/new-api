@@ -10,7 +10,11 @@ import (
 )
 
 type COSUploader struct {
-	client *cos.Client
+	objects cosMultipartUploader
+}
+
+type cosMultipartUploader interface {
+	MultiUpload(ctx context.Context, name string, filePath string, opt *cos.MultiUploadOptions) (*cos.CompleteMultipartUploadResult, *cos.Response, error)
 }
 
 func NewCOSUploader(cfg Config) (*COSUploader, error) {
@@ -24,10 +28,12 @@ func NewCOSUploader(cfg Config) (*COSUploader, error) {
 			SecretKey: cfg.SecretKey,
 		},
 	})
-	return &COSUploader{client: client}, nil
+	return &COSUploader{objects: client.Object}, nil
 }
 
 func (u *COSUploader) Upload(ctx context.Context, objectKey string, filePath string) error {
-	_, err := u.client.Object.PutFromFile(ctx, objectKey, filePath, nil)
+	_, _, err := u.objects.MultiUpload(ctx, objectKey, filePath, &cos.MultiUploadOptions{
+		ThreadPoolSize: 4,
+	})
 	return err
 }

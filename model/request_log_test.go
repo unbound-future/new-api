@@ -6,7 +6,30 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
+
+func TestRequestLogTextUsesPortableDatabaseTypes(t *testing.T) {
+	tests := []struct {
+		name      string
+		dialector gorm.Dialector
+		want      string
+	}{
+		{name: "postgres", dialector: postgres.New(postgres.Config{}), want: "TEXT"},
+		{name: "mysql", dialector: mysql.New(mysql.Config{}), want: "LONGTEXT"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db := &gorm.DB{Config: &gorm.Config{Dialector: tt.dialector}}
+			if got := (requestLogText("")).GormDBDataType(db, nil); got != tt.want {
+				t.Fatalf("GormDBDataType() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
 
 func withRequestLogDisabled(t *testing.T) {
 	oldEnabled := common.RequestLogEnabled

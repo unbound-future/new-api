@@ -7,23 +7,40 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
+
+// requestLogText keeps complete request/response payloads while allowing GORM
+// to choose a large text type supported by the active database.
+type requestLogText string
+
+func (requestLogText) GormDataType() string {
+	return "text"
+}
+
+func (requestLogText) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
+	if db != nil && db.Dialector != nil && db.Dialector.Name() == "mysql" {
+		return "LONGTEXT"
+	}
+	return "TEXT"
+}
 
 // RequestLog 存储每次请求/响应的 header 与 body 原文。
 // 其主键 Id 与对应消费日志（Log.Id）保持 1:1 一致，
 // 因此 autoIncrement 关闭，由调用方在写入消费日志后显式赋值。
 type RequestLog struct {
-	Id              int    `json:"id" gorm:"primaryKey;autoIncrement:false"`
-	UserId          int    `json:"user_id" gorm:"index"`
-	Username        string `json:"username" gorm:"index;default:''"`
-	CreatedAt       int64  `json:"created_at" gorm:"bigint;index"`
-	RequestId       string `json:"request_id,omitempty" gorm:"type:varchar(64);index;default:''"`
-	ModelName       string `json:"model_name" gorm:"index;default:''"`
-	Url             string `json:"url" gorm:"type:text"`
-	RequestHeaders  string `json:"request_headers" gorm:"type:mediumtext"`
-	RequestBody     string `json:"request_body" gorm:"type:longtext"`
-	ResponseHeaders string `json:"response_headers" gorm:"type:mediumtext"`
-	ResponseBody    string `json:"response_body" gorm:"type:longtext"`
+	Id              int            `json:"id" gorm:"primaryKey;autoIncrement:false"`
+	UserId          int            `json:"user_id" gorm:"index"`
+	Username        string         `json:"username" gorm:"index;default:''"`
+	CreatedAt       int64          `json:"created_at" gorm:"bigint;index"`
+	RequestId       string         `json:"request_id,omitempty" gorm:"type:varchar(64);index;default:''"`
+	ModelName       string         `json:"model_name" gorm:"index;default:''"`
+	Url             string         `json:"url" gorm:"type:text"`
+	RequestHeaders  requestLogText `json:"request_headers"`
+	RequestBody     requestLogText `json:"request_body"`
+	ResponseHeaders requestLogText `json:"response_headers"`
+	ResponseBody    requestLogText `json:"response_body"`
 }
 
 // 与 middleware/response_capture.go 及 pkg/coslog/log_entry.go 中的 key 保持一致。
@@ -107,10 +124,10 @@ func recordRequestLog(c *gin.Context, logId int, userId int, username string, mo
 		RequestId:       requestId,
 		ModelName:       modelName,
 		Url:             url,
-		RequestHeaders:  extractRequestHeaders(c),
-		RequestBody:     extractRequestBody(c),
-		ResponseHeaders: respHeadersStr,
-		ResponseBody:    respBodyStr,
+		RequestHeaders:  requestLogText(extractRequestHeaders(c)),
+		RequestBody:     requestLogText(extractRequestBody(c)),
+		ResponseHeaders: requestLogText(respHeadersStr),
+		ResponseBody:    requestLogText(respBodyStr),
 	}
 	if err := LOG_DB.Create(rl).Error; err != nil {
 		logger.LogError(c, "failed to record request log: "+err.Error())

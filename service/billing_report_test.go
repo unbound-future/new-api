@@ -199,8 +199,8 @@ func TestBillingReportFixedPriceFallsBackToDifference(t *testing.T) {
 		PromptTokens:     100,
 		CompletionTokens: 20,
 		Other: common.MapToJsonStr(map[string]interface{}{
-			"model_ratio": 99,
-			"group_ratio": 2,
+			"model_ratio":  99,
+			"group_ratio":  2,
 			"billing_mode": "fixed",
 			"model_price":  0.005,
 			"billing_report": map[string]interface{}{

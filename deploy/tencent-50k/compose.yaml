@@ -1,0 +1,31 @@
+services:
+  new-api:
+    image: ${NEWAPI_IMAGE:?NEWAPI_IMAGE must be set to an immutable digest}
+    container_name: new-api
+    restart: unless-stopped
+    command: --log-dir /var/log/new-api
+    env_file:
+      - /etc/newapi/newapi.env
+    ports:
+      - "3000:3000"
+    volumes:
+      - /data/newapi/coslog:/var/lib/new-api/coslog
+      - /data/newapi/logs:/var/log/new-api
+    stop_grace_period: 15m
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O - http://127.0.0.1:3000/api/status | grep -Eq '"success"[[:space:]]*:[[:space:]]*true'
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 300s
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
+    logging:
+      driver: json-file
+      options:
+        max-size: 100m
+        max-file: "5"

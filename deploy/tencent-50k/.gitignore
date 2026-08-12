@@ -1,0 +1,4 @@
+newapi.env
+*.rendered.sql
+secrets/
+

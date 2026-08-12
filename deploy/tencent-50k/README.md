@@ -17,8 +17,8 @@
 | PostgreSQL | `newapi-prod-pg` | 用户、令牌、渠道、额度、系统配置和账单聚合 |
 | Redis | `newapi-prod-redis` | 多实例共享缓存、会话和分布式状态 |
 | TCHouse-C | `newapi-prod-clickhouse` | 普通 `logs` 分布式存储 |
-| CLB | `newapi-prod-clb` | HTTPS 入口与健康检查 |
-| 启动配置 | `newapi-prod-launch-v1` | 固定机型、镜像 digest、数据盘和启动脚本 |
+| CLB | `newapi-prod-clb` | 当前 HTTP 验证入口；正式域名确定后增加 HTTPS |
+| 启动配置 | `newapi-prod-launch-v3` | 固定机型、镜像 digest、数据盘和启动脚本 |
 | 弹性伸缩组 | `newapi-prod-asg` | 管理 10～16 台同构 NewAPI 实例 |
 | COS 前缀 | `newlog-data-1346826778/us/tencent-prod/` | 保存抽样后的完整 COSLOG |
 
@@ -28,7 +28,7 @@
 
 ```text
 API 域名（DNS 直连，不经过 Cloudflare 代理）
-  -> 公网 CLB :443
+  -> 公网 CLB（当前验证使用 :80；正式启用后使用 :443）
   -> newapi-prod-asg（初始/最少 10，最多 16）
      -> PostgreSQL（业务与账单聚合）
      -> Redis（共享状态）
@@ -44,7 +44,7 @@ API 域名（DNS 直连，不经过 Cloudflare 代理）
 4. 用 `clickhouse/schema.sql.tpl` 创建 `logs_local` 和分布式 `logs`。
 5. 先启动一台应用实例，完成空数据库初始化并创建新环境 Root。
 6. 创建 CLB、启动配置和 ASG，先扩到 2 台验证，再扩到 10 台。
-7. 配置 CPU 60% 或内存 70% 持续 3 分钟时每次增加 2 台；缩容持续 20 分钟且每次只减 1 台。活跃连接先在 CLB 监控，不增加自定义采集程序。
+7. 配置 CPU 60%、内存 70% 或 TCP 已建立连接数 1800 持续 3 分钟时每次增加 2 台。暂不自动缩容，避免中断流式连接。
 8. 分阶段压测后再切换正式 API 域名。
 
 ## 应用文件位置
@@ -88,3 +88,20 @@ sudo ./scripts/verify-app.sh
 - COSLOG：上传失败会保留本地 `.jsonl` 并每 60 秒重试；磁盘达到 85% 后仅丢弃新样本，不阻塞 API。
 - 数据库：PostgreSQL 开启每日备份与 PITR，保留 7 天。
 
+## 当前生产资源状态
+
+- 地域：`na-ashburn`
+- VPC：`vpc-fz1s8ndx`
+- 镜像 digest：`sha256:35876fce5a1ca7323d9e5c43206cc368bcb454072ed0f401f40a058f4d55aeb3`
+- ASG：`asg-0lxkg8wu`，最低/期望 10、最高 16，两个可用区各 5 台
+- CLB：`lb-bnly7h9z`，HTTP 80，最小连接数调度，健康检查 `/api/status`
+- 当前验证地址：`http://lb-bnly7h9z-32gurd9tl5xpinhw.clb.use-tencentclb.com`
+- PostgreSQL：`postgres-hatubhdi`
+- Redis：`crs-lctlf7vc`
+- ClickHouse：`cdwch-1xf2obdz`
+
+正式开放前仍需配置业务数据、确定域名和证书，并增加 HTTPS 443 监听器；当前没有改动任何生产 DNS。
+
+## COSLOG 上传节奏
+
+COSLOG 沿用原有节奏，没有为本次部署改变逻辑：达到 1 万条或 120 秒时刷新到本地文件；本地文件达到约 100 MB 或进程退出时才轮转并开始上传。低流量时，COS 中看不到立即生成的新对象属于预期现象。

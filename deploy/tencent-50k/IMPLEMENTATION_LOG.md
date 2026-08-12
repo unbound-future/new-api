@@ -2,6 +2,20 @@
 
 更新时间：2026-08-12（Asia/Shanghai）
 
+## 关闭记录
+
+因当前方案固定成本过高，已于 2026-08-12 关闭整套 `newapi-prod` 计费资源：
+
+- ASG 先设置为 `MinSize=0 / DesiredCapacity=0 / MaxSize=0`，确认 10 台实例和 20 块随实例云盘全部释放后，删除三条扩容策略、ASG 和启动配置。
+- 删除 CLB、HTTP 监听器和 900 秒个性化超时配置。
+- PostgreSQL 关闭删除保护后隔离；按量实例已停止计费，暂处官方回收窗口。
+- Redis 执行按量实例销毁；当前为“待删除”，已停止计费。
+- ClickHouse 执行集群销毁，已经从活动实例列表移除。
+- 精确复核结果：`newapi-prod` 相关 CVM、CBS、EIP、CLB、ASG 和启动配置均为 0。
+- 保留零固定费用的 VPC、两个子网、两个安全组、TCR 个人版仓库与镜像，供下一版低成本方案复用。
+- COS 旧桶及历史数据未删除；新前缀 `us/tencent-prod/` 关闭时仍为 0 个对象。
+- 独立测试机 `test-new`、w-new 和 GCP 环境不属于本次关闭范围，没有操作。
+
 ## 已完成
 
 - 从 GitHub `2026-08-07-main` 的 `7d491bfc` 建立独立分支 `deploy/tencent-50k`。

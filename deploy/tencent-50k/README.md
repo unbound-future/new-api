@@ -1,5 +1,7 @@
 # 腾讯云 NewAPI 5 万 RPM 部署（无控制节点）
 
+> 状态：已于 2026-08-12 停止。应用实例、云盘、CLB、ASG、PostgreSQL、Redis 和 ClickHouse 均已停止计费或进入官方销毁流程。本目录保留作为重新规划的代码与配置参考，不代表当前有可访问的生产服务。
+
 这套目录用于创建一套全新的腾讯云环境，不迁移、读取或修改现有业务环境。所有应用节点运行完全相同的镜像与配置，不再创建单独控制节点。账单 Worker 会在所有实例启动，但通过 PostgreSQL 租约保证同一时间只有一台执行；实例退出后其他节点可自动接手。
 
 ## 资源清单与命名
@@ -88,19 +90,18 @@ sudo ./scripts/verify-app.sh
 - COSLOG：上传失败会保留本地 `.jsonl` 并每 60 秒重试；磁盘达到 85% 后仅丢弃新样本，不阻塞 API。
 - 数据库：PostgreSQL 开启每日备份与 PITR，保留 7 天。
 
-## 当前生产资源状态
+## 关闭前的生产资源状态
 
 - 地域：`na-ashburn`
 - VPC：`vpc-fz1s8ndx`
 - 镜像 digest：`sha256:35876fce5a1ca7323d9e5c43206cc368bcb454072ed0f401f40a058f4d55aeb3`
-- ASG：`asg-0lxkg8wu`，最低/期望 10、最高 16，两个可用区各 5 台
-- CLB：`lb-bnly7h9z`，HTTP 80，最小连接数调度，健康检查 `/api/status`
-- 当前验证地址：`http://lb-bnly7h9z-32gurd9tl5xpinhw.clb.use-tencentclb.com`
-- PostgreSQL：`postgres-hatubhdi`
-- Redis：`crs-lctlf7vc`
-- ClickHouse：`cdwch-1xf2obdz`
+- ASG：`asg-0lxkg8wu`（已删除）
+- CLB：`lb-bnly7h9z`（已删除）
+- PostgreSQL：`postgres-hatubhdi`（已隔离并停止计费）
+- Redis：`crs-lctlf7vc`（待删除并停止计费）
+- ClickHouse：`cdwch-1xf2obdz`（已销毁）
 
-正式开放前仍需配置业务数据、确定域名和证书，并增加 HTTPS 443 监听器；当前没有改动任何生产 DNS。
+VPC、子网、安全组和免费 TCR 镜像仍保留，便于低成本方案重做；这些资源本身没有固定运行费用。原 CLB 地址已经失效，没有改动任何生产 DNS。
 
 ## COSLOG 上传节奏
 

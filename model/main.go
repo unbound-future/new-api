@@ -217,7 +217,7 @@ func InitLogDB() (err error) {
 		if !common.IsMasterNode {
 			return nil
 		}
-		return migrateBillingReportTables(LOG_DB)
+		return migrateBillingReportTables(DB)
 	}
 	db, dbType, err := chooseDB("LOG_SQL_DSN", true)
 	if err == nil {
@@ -245,6 +245,9 @@ func InitLogDB() (err error) {
 			return nil
 		}
 		common.SysLog("database migration started")
+		if err = migrateBillingReportTables(DB); err != nil {
+			return err
+		}
 		err = migrateLOGDB()
 		return err
 	} else {
@@ -410,15 +413,64 @@ func migrateLOGDB() error {
 	if err := LOG_DB.AutoMigrate(&RequestLog{}); err != nil {
 		return err
 	}
-	return migrateBillingReportTables(LOG_DB)
+	return nil
 }
 
 func migrateClickHouseLogDB() error {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("LOG_SQL_MANAGED_SCHEMA")), "true") {
+		return validateManagedClickHouseLogDB()
+	}
 	ttlDays := clickHouseLogTTLDays()
 	if err := LOG_DB.Exec(clickHouseLogCreateTableSQL(ttlDays)).Error; err != nil {
 		return err
 	}
 	return syncClickHouseLogTTL(ttlDays)
+}
+
+func validateManagedClickHouseLogDB() error {
+	var table struct {
+		Engine string `gorm:"column:engine"`
+	}
+	result := LOG_DB.Raw("SELECT engine FROM system.tables WHERE database = currentDatabase() AND name = 'logs' LIMIT 1").Scan(&table)
+	if result.Error != nil {
+		return fmt.Errorf("validate managed ClickHouse logs table: %w", result.Error)
+	}
+	if result.RowsAffected != 1 {
+		return fmt.Errorf("managed ClickHouse schema requires an existing logs table")
+	}
+	if table.Engine != "Distributed" {
+		return fmt.Errorf("managed ClickHouse logs table must use Distributed engine, got %q", table.Engine)
+	}
+
+	var columns []struct {
+		Name string `gorm:"column:name"`
+	}
+	if err := LOG_DB.Raw("SELECT name FROM system.columns WHERE database = currentDatabase() AND table = 'logs'").Scan(&columns).Error; err != nil {
+		return fmt.Errorf("validate managed ClickHouse logs columns: %w", err)
+	}
+	required := map[string]bool{
+		"id": false, "user_id": false, "created_at": false, "type": false,
+		"content": false, "username": false, "token_name": false, "model_name": false,
+		"quota": false, "prompt_tokens": false, "completion_tokens": false,
+		"use_time": false, "is_stream": false, "channel_id": false, "token_id": false,
+		"group": false, "ip": false, "request_id": false,
+		"upstream_request_id": false, "other": false,
+	}
+	for _, column := range columns {
+		if _, ok := required[column.Name]; ok {
+			required[column.Name] = true
+		}
+	}
+	var missing []string
+	for name, present := range required {
+		if !present {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("managed ClickHouse logs table is missing columns: %s", strings.Join(missing, ", "))
+	}
+	return nil
 }
 
 func clickHouseLogTTLDays() int {

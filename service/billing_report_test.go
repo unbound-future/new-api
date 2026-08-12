@@ -9,7 +9,9 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func TestBillingReportAggregationAndUpsert(t *testing.T) {
@@ -99,19 +101,63 @@ func TestBillingReportAggregationAndUpsert(t *testing.T) {
 	require.True(t, aggregate.OriginalTotal.Equal(decimal.RequireFromString("0.002645")))
 	require.True(t, aggregate.AdjustedTotal.Equal(decimal.RequireFromString("0.00529")))
 
-	require.NoError(t, model.LOG_DB.Transaction(func(tx *gorm.DB) error {
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
 		return applyBillingAggregates(tx, aggregates, false, 0)
 	}))
-	require.NoError(t, model.LOG_DB.Transaction(func(tx *gorm.DB) error {
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
 		return applyBillingAggregates(tx, aggregates, false, 0)
 	}))
 
 	var stored model.BillingReportDaily
-	require.NoError(t, model.LOG_DB.First(&stored).Error)
+	require.NoError(t, model.DB.First(&stored).Error)
 	require.Equal(t, int64(2), stored.CallCount)
 	require.Equal(t, int64(1700), stored.InputTokens)
 	require.True(t, stored.OriginalTotal.Equal(decimal.RequireFromString("0.00529")))
 	require.True(t, stored.AdjustedTotal.Equal(decimal.RequireFromString("0.01058")))
+}
+
+func TestBillingReportPostgresUpsertQualifiesExistingColumns(t *testing.T) {
+	db := &gorm.DB{Config: &gorm.Config{Dialector: postgres.New(postgres.Config{})}}
+	onConflict := billingReportUpsertClause(db)
+
+	var adjustedTotal clause.Expr
+	for _, assignment := range onConflict.DoUpdates {
+		if assignment.Column.Name == "adjusted_total" {
+			var ok bool
+			adjustedTotal, ok = assignment.Value.(clause.Expr)
+			require.True(t, ok)
+			break
+		}
+	}
+	require.Equal(t,
+		`"billing_report_daily"."adjusted_total" + excluded."adjusted_total"`,
+		adjustedTotal.SQL,
+	)
+}
+
+func TestFetchBillingLogsUsesCreatedAtAndRequestIDCursor(t *testing.T) {
+	base := int64(1_999_999_000)
+	requestIDs := []string{"billing-cursor-a", "billing-cursor-b", "billing-cursor-c"}
+	logs := []model.Log{
+		{CreatedAt: base, Type: model.LogTypeConsume, RequestId: requestIDs[0], ModelName: "cursor-test"},
+		{CreatedAt: base, Type: model.LogTypeConsume, RequestId: requestIDs[1], ModelName: "cursor-test"},
+		{CreatedAt: base + 1, Type: model.LogTypeConsume, RequestId: requestIDs[2], ModelName: "cursor-test"},
+	}
+	require.NoError(t, model.LOG_DB.Create(&logs).Error)
+	t.Cleanup(func() {
+		model.LOG_DB.Where("request_id IN ?", requestIDs).Delete(&model.Log{})
+	})
+
+	rows, err := fetchBillingLogs(
+		billingCursor{CreatedAt: base, RequestID: requestIDs[0]},
+		billingCursor{CreatedAt: base + 1, RequestID: requestIDs[2]},
+		base,
+		base+2,
+	)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	require.Equal(t, requestIDs[1], rows[0].RequestId)
+	require.Equal(t, requestIDs[2], rows[1].RequestId)
 }
 
 func TestBillingReportTieredPricingBreakdown(t *testing.T) {

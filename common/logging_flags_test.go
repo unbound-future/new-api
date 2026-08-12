@@ -5,9 +5,11 @@ import "testing"
 func TestInitLoggingFlags(t *testing.T) {
 	oldCosLogEnabled := CosLogEnabled
 	oldRequestLogEnabled := RequestLogEnabled
+	oldSampleBasisPoints := GetCosLogSampleBasisPoints()
 	t.Cleanup(func() {
 		CosLogEnabled = oldCosLogEnabled
 		RequestLogEnabled = oldRequestLogEnabled
+		SetCosLogSampleBasisPoints(oldSampleBasisPoints)
 	})
 
 	t.Run("defaults preserve existing behavior", func(t *testing.T) {
@@ -25,9 +27,13 @@ func TestInitLoggingFlags(t *testing.T) {
 	t.Run("explicit values are parsed independently", func(t *testing.T) {
 		t.Setenv("COSLOG_ENABLED", "true")
 		t.Setenv("REQUEST_LOG_ENABLED", "false")
+		t.Setenv("COSLOG_SAMPLE_PERCENT", "10")
 		initLoggingFlags()
 		if !CosLogEnabled || RequestLogEnabled {
 			t.Fatalf("unexpected flags: coslog=%t request_log=%t", CosLogEnabled, RequestLogEnabled)
+		}
+		if GetCosLogSampleBasisPoints() != 1000 {
+			t.Fatalf("unexpected sample basis points: %d", GetCosLogSampleBasisPoints())
 		}
 	})
 }

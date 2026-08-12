@@ -73,3 +73,35 @@ func TestJSONLWriter_FileRotation(t *testing.T) {
 		t.Fatalf("expected 2 files after rotation, got %d", len(entries))
 	}
 }
+
+func TestJSONLWriter_CloseFlushesBufferedEntries(t *testing.T) {
+	dir := t.TempDir()
+	cfg := Config{
+		FlushSize:         100,
+		FlushInterval:     time.Hour,
+		MaxFileSize:       1024 * 1024,
+		LocalDir:          dir,
+		DeleteAfterUpload: false,
+	}
+	w, err := NewJSONLWriter(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.Write(COSLOG{UserName: "shutdown", ModelName: "gpt-5"})
+	w.Close()
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected one flushed file, got %d", len(entries))
+	}
+	data, err := os.ReadFile(dir + "/" + entries[0].Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"user_name":"shutdown"`) {
+		t.Fatalf("buffered entry was not flushed: %s", data)
+	}
+}

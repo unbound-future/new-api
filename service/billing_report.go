@@ -20,16 +20,16 @@ import (
 )
 
 const (
-	billingReportBatchSize        = 10000
-	billingReportAutoInterval     = 5 * time.Minute
-	billingReportWorkerInterval   = 5 * time.Second
-	billingReportLeaseDuration    = 90 * time.Second
-	billingReportBackfillStart    = "2026-07-01"
-	billingReportStatusIdle       = "idle"
-	billingReportStatusSyncing    = "syncing"
-	billingReportStatusRebuilding = "rebuilding"
-	billingReportStatusError      = "error"
-	billingReportHistoryJobID     = uint64(1<<63 - 1)
+	billingReportBatchSize         = 10000
+	billingReportAutoInterval      = 5 * time.Minute
+	billingReportWorkerInterval    = 5 * time.Second
+	billingReportLeaseDuration     = 90 * time.Second
+	billingReportIngestSafetyDelay = 120 * time.Second
+	billingReportBackfillStart     = "2026-07-01"
+	billingReportStatusIdle        = "idle"
+	billingReportStatusSyncing     = "syncing"
+	billingReportStatusRebuilding  = "rebuilding"
+	billingReportStatusError       = "error"
 )
 
 var billingReportWorkerStarted atomic.Bool
@@ -40,6 +40,16 @@ type billingChannelSnapshot struct {
 	Name        string
 	Tag         string
 	UpstreamUrl string
+}
+
+type billingCursor struct {
+	CreatedAt int64
+	RequestID string
+}
+
+func billingCursorBefore(left billingCursor, right billingCursor) bool {
+	return left.CreatedAt < right.CreatedAt ||
+		(left.CreatedAt == right.CreatedAt && left.RequestID < right.RequestID)
 }
 
 type billingReportSnapshot struct {
@@ -101,7 +111,7 @@ func StartBillingReportWorker() {
 	if !BillingReportEnabled() || !billingReportWorkerStarted.CompareAndSwap(false, true) {
 		return
 	}
-	if err := model.EnsureBillingReportState(model.LOG_DB); err != nil {
+	if err := model.EnsureBillingReportState(model.DB); err != nil {
 		common.SysError("billing report state initialization failed: " + err.Error())
 		billingReportWorkerStarted.Store(false)
 		return
@@ -124,7 +134,7 @@ func billingReportOwner() string {
 
 func acquireBillingReportLease(owner string) (bool, error) {
 	now := time.Now().Unix()
-	result := model.LOG_DB.Model(&model.BillingReportState{}).
+	result := model.DB.Model(&model.BillingReportState{}).
 		Where("id = ? AND (lock_until < ? OR lock_owner = ?)", model.BillingReportStateID, now, owner).
 		Updates(map[string]interface{}{
 			"lock_owner": owner,
@@ -161,7 +171,7 @@ func renewBillingReportLease(tx *gorm.DB, owner string) error {
 
 func releaseBillingReportLease(owner string) {
 	now := time.Now().Unix()
-	_ = model.LOG_DB.Model(&model.BillingReportState{}).
+	_ = model.DB.Model(&model.BillingReportState{}).
 		Where("id = ? AND lock_owner = ?", model.BillingReportStateID, owner).
 		Updates(map[string]interface{}{
 			"lock_owner": "",
@@ -199,7 +209,7 @@ func runBillingReportWorkerOnce() {
 	}
 
 	var state model.BillingReportState
-	if err := model.LOG_DB.First(&state, model.BillingReportStateID).Error; err != nil {
+	if err := model.DB.First(&state, model.BillingReportStateID).Error; err != nil {
 		setBillingReportError(err)
 		return
 	}
@@ -220,7 +230,7 @@ func runBillingReportWorkerOnce() {
 
 func initializeBillingReportState(owner string) error {
 	var state model.BillingReportState
-	if err := model.LOG_DB.First(&state, model.BillingReportStateID).Error; err != nil {
+	if err := model.DB.First(&state, model.BillingReportStateID).Error; err != nil {
 		return err
 	}
 	if state.Initialized {
@@ -228,35 +238,28 @@ func initializeBillingReportState(owner string) error {
 	}
 	today := time.Now().In(billingReportLocation).Format("2006-01-02")
 	todayStart, _ := time.ParseInLocation("2006-01-02", today, billingReportLocation)
-	var liveCursor int
-	if err := model.LOG_DB.Model(&model.Log{}).
-		Where("created_at < ?", todayStart.Unix()).
-		Select("COALESCE(MAX(id), 0)").
-		Scan(&liveCursor).Error; err != nil {
-		return err
-	}
-	var historyCutoff int
-	if err := model.LOG_DB.Model(&model.Log{}).
-		Select("COALESCE(MAX(id), 0)").
-		Scan(&historyCutoff).Error; err != nil {
+	liveCursor, err := latestBillingCursor(todayStart.Unix())
+	if err != nil {
 		return err
 	}
 	now := time.Now().Unix()
-	return model.LOG_DB.Transaction(func(tx *gorm.DB) error {
+	return model.DB.Transaction(func(tx *gorm.DB) error {
 		if err := renewBillingReportLease(tx, owner); err != nil {
 			return err
 		}
 		return tx.Model(&model.BillingReportState{}).
 			Where("id = ? AND initialized = ?", model.BillingReportStateID, false).
 			Updates(map[string]interface{}{
-				"initialized":       true,
-				"live_cursor_id":    liveCursor,
-				"history_date":      billingReportBackfillStart,
-				"history_cursor_id": 0,
-				"history_cutoff_id": historyCutoff,
-				"status":            billingReportStatusIdle,
-				"last_error":        "",
-				"updated_at":        now,
+				"initialized":            true,
+				"live_cursor_id":         0,
+				"live_cursor_created_at": liveCursor.CreatedAt,
+				"live_cursor_request_id": liveCursor.RequestID,
+				"history_date":           "",
+				"history_cursor_id":      0,
+				"history_cutoff_id":      0,
+				"status":                 billingReportStatusIdle,
+				"last_error":             "",
+				"updated_at":             now,
 			}).Error
 	})
 }
@@ -267,7 +270,7 @@ func setBillingReportError(err error) {
 	}
 	common.SysError("billing report: " + err.Error())
 	now := time.Now().Unix()
-	_ = model.LOG_DB.Model(&model.BillingReportState{}).
+	_ = model.DB.Model(&model.BillingReportState{}).
 		Where("id = ?", model.BillingReportStateID).
 		Updates(map[string]interface{}{
 			"status":     billingReportStatusError,
@@ -278,7 +281,7 @@ func setBillingReportError(err error) {
 
 func nextBillingReportJob() (*model.BillingReportJob, error) {
 	var job model.BillingReportJob
-	result := model.LOG_DB.
+	result := model.DB.
 		Where("status IN ?", []string{model.BillingReportJobRunning, model.BillingReportJobPending}).
 		Order("CASE WHEN status = 'running' THEN 0 ELSE 1 END, id ASC").
 		Limit(1).
@@ -294,17 +297,15 @@ func nextBillingReportJob() (*model.BillingReportJob, error) {
 
 func syncBillingReportLive(owner string) error {
 	var state model.BillingReportState
-	if err := model.LOG_DB.First(&state, model.BillingReportStateID).Error; err != nil {
+	if err := model.DB.First(&state, model.BillingReportStateID).Error; err != nil {
 		return err
 	}
-	var highWatermark int
-	if err := model.LOG_DB.Model(&model.Log{}).
-		Select("COALESCE(MAX(id), 0)").
-		Scan(&highWatermark).Error; err != nil {
+	highWatermark, err := latestBillingCursor(time.Now().Add(-billingReportIngestSafetyDelay).Unix())
+	if err != nil {
 		return err
 	}
 	now := time.Now().Unix()
-	if err := model.LOG_DB.Model(&model.BillingReportState{}).
+	if err := model.DB.Model(&model.BillingReportState{}).
 		Where("id = ?", model.BillingReportStateID).
 		Updates(map[string]interface{}{
 			"status":           billingReportStatusSyncing,
@@ -315,9 +316,9 @@ func syncBillingReportLive(owner string) error {
 		return err
 	}
 
-	cursor := state.LiveCursorId
-	for cursor < highWatermark {
-		logs, err := fetchBillingLogs(cursor, highWatermark, "", "")
+	cursor := billingCursor{CreatedAt: state.LiveCursorCreatedAt, RequestID: state.LiveCursorRequestId}
+	for billingCursorBefore(cursor, highWatermark) {
+		logs, err := fetchBillingLogs(cursor, highWatermark, 0, 0)
 		if err != nil {
 			return err
 		}
@@ -325,8 +326,9 @@ func syncBillingReportLive(owner string) error {
 			return advanceLiveCursor(owner, highWatermark, 0, 0)
 		}
 		aggregates, latestLogAt := buildBillingAggregates(logs)
-		nextCursor := logs[len(logs)-1].Id
-		if err := model.LOG_DB.Transaction(func(tx *gorm.DB) error {
+		lastLog := logs[len(logs)-1]
+		nextCursor := billingCursor{CreatedAt: lastLog.CreatedAt, RequestID: lastLog.RequestId}
+		if err := model.DB.Transaction(func(tx *gorm.DB) error {
 			if err := renewBillingReportLease(tx, owner); err != nil {
 				return err
 			}
@@ -339,7 +341,7 @@ func syncBillingReportLive(owner string) error {
 		}
 		cursor = nextCursor
 	}
-	return model.LOG_DB.Model(&model.BillingReportState{}).
+	return model.DB.Model(&model.BillingReportState{}).
 		Where("id = ?", model.BillingReportStateID).
 		Updates(map[string]interface{}{
 			"status":     billingReportStatusIdle,
@@ -348,8 +350,8 @@ func syncBillingReportLive(owner string) error {
 		}).Error
 }
 
-func advanceLiveCursor(owner string, cursor int, processed int64, latestLogAt int64) error {
-	return model.LOG_DB.Transaction(func(tx *gorm.DB) error {
+func advanceLiveCursor(owner string, cursor billingCursor, processed int64, latestLogAt int64) error {
+	return model.DB.Transaction(func(tx *gorm.DB) error {
 		if err := renewBillingReportLease(tx, owner); err != nil {
 			return err
 		}
@@ -357,13 +359,15 @@ func advanceLiveCursor(owner string, cursor int, processed int64, latestLogAt in
 	})
 }
 
-func updateLiveCursor(tx *gorm.DB, cursor int, processed int64, latestLogAt int64) error {
+func updateLiveCursor(tx *gorm.DB, cursor billingCursor, processed int64, latestLogAt int64) error {
 	updates := map[string]interface{}{
-		"live_cursor_id": cursor,
-		"last_synced_at": time.Now().Unix(),
-		"status":         billingReportStatusIdle,
-		"last_error":     "",
-		"updated_at":     time.Now().Unix(),
+		"live_cursor_id":         0,
+		"live_cursor_created_at": cursor.CreatedAt,
+		"live_cursor_request_id": cursor.RequestID,
+		"last_synced_at":         time.Now().Unix(),
+		"status":                 billingReportStatusIdle,
+		"last_error":             "",
+		"updated_at":             time.Now().Unix(),
 	}
 	if processed > 0 {
 		updates["processed_logs"] = gorm.Expr("processed_logs + ?", processed)
@@ -376,96 +380,41 @@ func updateLiveCursor(tx *gorm.DB, cursor int, processed int64, latestLogAt int6
 		Updates(updates).Error
 }
 
-func processBillingReportHistoryBatch(owner string) error {
-	var state model.BillingReportState
-	if err := model.LOG_DB.First(&state, model.BillingReportStateID).Error; err != nil {
-		return err
-	}
-	if state.HistoryDate == "" {
-		return nil
-	}
-	historyDate, err := time.ParseInLocation("2006-01-02", state.HistoryDate, billingReportLocation)
-	if err != nil {
-		return err
-	}
-	yesterday := time.Now().In(billingReportLocation).AddDate(0, 0, -1)
-	if historyDate.After(yesterday) {
-		return nil
-	}
-
-	startUnix := historyDate.Unix()
-	endUnix := historyDate.AddDate(0, 0, 1).Unix()
-	logs, err := fetchBillingLogs(state.HistoryCursorId, state.HistoryCutoffId, strconv.FormatInt(startUnix, 10), strconv.FormatInt(endUnix, 10))
-	if err != nil {
-		return err
-	}
-	if len(logs) == 0 {
-		return finalizeHistoryDay(owner, state.HistoryDate)
-	}
-	aggregates, latestLogAt := buildBillingAggregates(logs)
-	nextCursor := logs[len(logs)-1].Id
-	return model.LOG_DB.Transaction(func(tx *gorm.DB) error {
-		if err := renewBillingReportLease(tx, owner); err != nil {
-			return err
-		}
-		if state.HistoryCursorId == 0 {
-			if err := tx.Where("job_id = ? AND bill_date = ?", billingReportHistoryJobID, state.HistoryDate).
-				Delete(&model.BillingReportDaily{}).Error; err != nil {
-				return err
-			}
-		}
-		if err := applyBillingAggregates(tx, aggregates, true, billingReportHistoryJobID); err != nil {
-			return err
-		}
-		return tx.Model(&model.BillingReportState{}).
-			Where("id = ?", model.BillingReportStateID).
-			Updates(map[string]interface{}{
-				"history_cursor_id":  nextCursor,
-				"processed_logs":     gorm.Expr("processed_logs + ?", len(logs)),
-				"last_source_log_at": latestLogAt,
-				"status":             billingReportStatusRebuilding,
-				"last_error":         "",
-				"updated_at":         time.Now().Unix(),
-			}).Error
-	})
-}
-
-func finalizeHistoryDay(owner string, billDate string) error {
-	nextDate, err := time.ParseInLocation("2006-01-02", billDate, billingReportLocation)
-	if err != nil {
-		return err
-	}
-	return model.LOG_DB.Transaction(func(tx *gorm.DB) error {
-		if err := renewBillingReportLease(tx, owner); err != nil {
-			return err
-		}
-		if err := replaceBillingReportDayFromStaging(tx, billingReportHistoryJobID, billDate); err != nil {
-			return err
-		}
-		return tx.Model(&model.BillingReportState{}).
-			Where("id = ?", model.BillingReportStateID).
-			Updates(map[string]interface{}{
-				"history_date":      nextDate.AddDate(0, 0, 1).Format("2006-01-02"),
-				"history_cursor_id": 0,
-				"status":            billingReportStatusIdle,
-				"last_error":        "",
-				"updated_at":        time.Now().Unix(),
-			}).Error
-	})
-}
-
-func fetchBillingLogs(cursor int, cutoff int, startUnix string, endUnix string) ([]model.Log, error) {
+func latestBillingCursor(beforeUnix int64) (billingCursor, error) {
 	tx := model.LOG_DB.Model(&model.Log{}).
-		Select([]string{"id", "user_id", "created_at", "username", "token_name", "model_name", "quota", "prompt_tokens", "completion_tokens", "channel_id", "token_id", "group", "other"}).
-		Where("type = ? AND id > ? AND id <= ?", model.LogTypeConsume, cursor, cutoff)
-	if startUnix != "" {
+		Select("created_at, request_id").
+		Where("type = ?", model.LogTypeConsume)
+	if beforeUnix > 0 {
+		tx = tx.Where("created_at < ?", beforeUnix)
+	}
+	var log model.Log
+	result := tx.Order("created_at DESC, request_id DESC").Limit(1).Find(&log)
+	if result.Error != nil {
+		return billingCursor{}, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return billingCursor{}, nil
+	}
+	return billingCursor{CreatedAt: log.CreatedAt, RequestID: log.RequestId}, nil
+}
+
+func fetchBillingLogs(cursor billingCursor, cutoff billingCursor, startUnix int64, endUnix int64) ([]model.Log, error) {
+	if cutoff.CreatedAt == 0 || !billingCursorBefore(cursor, cutoff) {
+		return nil, nil
+	}
+	tx := model.LOG_DB.Model(&model.Log{}).
+		Select([]string{"user_id", "created_at", "username", "token_name", "model_name", "quota", "prompt_tokens", "completion_tokens", "channel_id", "token_id", "group", "request_id", "other"}).
+		Where("type = ?", model.LogTypeConsume).
+		Where("(created_at > ?) OR (created_at = ? AND request_id > ?)", cursor.CreatedAt, cursor.CreatedAt, cursor.RequestID).
+		Where("(created_at < ?) OR (created_at = ? AND request_id <= ?)", cutoff.CreatedAt, cutoff.CreatedAt, cutoff.RequestID)
+	if startUnix > 0 {
 		tx = tx.Where("created_at >= ?", startUnix)
 	}
-	if endUnix != "" {
+	if endUnix > 0 {
 		tx = tx.Where("created_at < ?", endUnix)
 	}
 	var logs []model.Log
-	err := tx.Order("id ASC").Limit(billingReportBatchSize).Find(&logs).Error
+	err := tx.Order("created_at ASC, request_id ASC").Limit(billingReportBatchSize).Find(&logs).Error
 	return logs, err
 }
 
@@ -916,10 +865,14 @@ func billingReportUpsertClause(tx *gorm.DB) clause.OnConflict {
 		{Name: "bucket_key"},
 	}
 	incoming := func(column string) clause.Expr {
-		if tx.Dialector.Name() == "mysql" {
+		switch tx.Dialector.Name() {
+		case "mysql":
 			return gorm.Expr(column + " + VALUES(" + column + ")")
+		case "postgres":
+			return gorm.Expr("\"billing_report_daily\".\"" + column + "\" + excluded.\"" + column + "\"")
+		default:
+			return gorm.Expr(column + " + excluded." + column)
 		}
-		return gorm.Expr(column + " + excluded." + column)
 	}
 	assignments := map[string]interface{}{}
 	for _, column := range []string{
@@ -970,7 +923,7 @@ func CreateBillingReportJob(startDate string, endDate string) (*model.BillingRep
 		return nil, errors.New("end date must not be before start date")
 	}
 	var active int64
-	if err := model.LOG_DB.Model(&model.BillingReportJob{}).
+	if err := model.DB.Model(&model.BillingReportJob{}).
 		Where("status IN ?", []string{model.BillingReportJobPending, model.BillingReportJobRunning}).
 		Count(&active).Error; err != nil {
 		return nil, err
@@ -978,25 +931,29 @@ func CreateBillingReportJob(startDate string, endDate string) (*model.BillingRep
 	if active > 0 {
 		return nil, errors.New("another billing rebuild is already running")
 	}
-	var cutoff int
-	if err := model.LOG_DB.Model(&model.Log{}).
-		Select("COALESCE(MAX(id), 0)").
-		Scan(&cutoff).Error; err != nil {
+	cutoffBefore := end.AddDate(0, 0, 1).Unix()
+	safeBefore := time.Now().Add(-billingReportIngestSafetyDelay).Unix()
+	if safeBefore < cutoffBefore {
+		cutoffBefore = safeBefore
+	}
+	cutoff, err := latestBillingCursor(cutoffBefore)
+	if err != nil {
 		return nil, err
 	}
 	totalDays := int(end.Sub(start).Hours()/24) + 1
 	now := time.Now().Unix()
 	job := &model.BillingReportJob{
-		StartDate:   startDate,
-		EndDate:     endDate,
-		CurrentDate: startDate,
-		CutoffId:    cutoff,
-		Status:      model.BillingReportJobPending,
-		TotalDays:   totalDays,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		StartDate:       startDate,
+		EndDate:         endDate,
+		CurrentDate:     startDate,
+		CutoffCreatedAt: cutoff.CreatedAt,
+		CutoffRequestId: cutoff.RequestID,
+		Status:          model.BillingReportJobPending,
+		TotalDays:       totalDays,
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
-	if err := model.LOG_DB.Create(job).Error; err != nil {
+	if err := model.DB.Create(job).Error; err != nil {
 		return nil, err
 	}
 	return job, nil
@@ -1008,7 +965,7 @@ func processBillingReportJobBatch(owner string, job *model.BillingReportJob) err
 		return err
 	}
 	if job.Status == model.BillingReportJobPending {
-		if err := model.LOG_DB.Transaction(func(tx *gorm.DB) error {
+		if err := model.DB.Transaction(func(tx *gorm.DB) error {
 			if err := renewBillingReportLease(tx, owner); err != nil {
 				return err
 			}
@@ -1028,7 +985,9 @@ func processBillingReportJobBatch(owner string, job *model.BillingReportJob) err
 	}
 	startUnix := currentDate.Unix()
 	endUnix := currentDate.AddDate(0, 0, 1).Unix()
-	logs, err := fetchBillingLogs(job.CursorId, job.CutoffId, strconv.FormatInt(startUnix, 10), strconv.FormatInt(endUnix, 10))
+	cursor := billingCursor{CreatedAt: job.CursorCreatedAt, RequestID: job.CursorRequestId}
+	cutoff := billingCursor{CreatedAt: job.CutoffCreatedAt, RequestID: job.CutoffRequestId}
+	logs, err := fetchBillingLogs(cursor, cutoff, startUnix, endUnix)
 	if err != nil {
 		return err
 	}
@@ -1036,8 +995,9 @@ func processBillingReportJobBatch(owner string, job *model.BillingReportJob) err
 		return finalizeBillingReportJobDay(owner, job)
 	}
 	aggregates, _ := buildBillingAggregates(logs)
-	nextCursor := logs[len(logs)-1].Id
-	return model.LOG_DB.Transaction(func(tx *gorm.DB) error {
+	lastLog := logs[len(logs)-1]
+	nextCursor := billingCursor{CreatedAt: lastLog.CreatedAt, RequestID: lastLog.RequestId}
+	return model.DB.Transaction(func(tx *gorm.DB) error {
 		if err := renewBillingReportLease(tx, owner); err != nil {
 			return err
 		}
@@ -1046,9 +1006,11 @@ func processBillingReportJobBatch(owner string, job *model.BillingReportJob) err
 		}
 		return tx.Model(&model.BillingReportJob{}).Where("id = ?", job.Id).
 			Updates(map[string]interface{}{
-				"cursor_id":      nextCursor,
-				"processed_logs": gorm.Expr("processed_logs + ?", len(logs)),
-				"updated_at":     time.Now().Unix(),
+				"cursor_id":         0,
+				"cursor_created_at": nextCursor.CreatedAt,
+				"cursor_request_id": nextCursor.RequestID,
+				"processed_logs":    gorm.Expr("processed_logs + ?", len(logs)),
+				"updated_at":        time.Now().Unix(),
 			}).Error
 	})
 }
@@ -1064,7 +1026,7 @@ func finalizeBillingReportJobDay(owner string, job *model.BillingReportJob) erro
 	}
 	next := current.AddDate(0, 0, 1)
 	finished := next.After(end)
-	return model.LOG_DB.Transaction(func(tx *gorm.DB) error {
+	return model.DB.Transaction(func(tx *gorm.DB) error {
 		if err := renewBillingReportLease(tx, owner); err != nil {
 			return err
 		}
@@ -1072,9 +1034,11 @@ func finalizeBillingReportJobDay(owner string, job *model.BillingReportJob) erro
 			return err
 		}
 		jobUpdates := map[string]interface{}{
-			"processed_days": gorm.Expr("processed_days + 1"),
-			"cursor_id":      0,
-			"updated_at":     time.Now().Unix(),
+			"processed_days":    gorm.Expr("processed_days + 1"),
+			"cursor_id":         0,
+			"cursor_created_at": 0,
+			"cursor_request_id": "",
+			"updated_at":        time.Now().Unix(),
 		}
 		if finished {
 			jobUpdates["status"] = model.BillingReportJobCompleted
@@ -1090,7 +1054,11 @@ func finalizeBillingReportJobDay(owner string, job *model.BillingReportJob) erro
 		if job.CurrentDate == today {
 			if err := tx.Model(&model.BillingReportState{}).
 				Where("id = ?", model.BillingReportStateID).
-				Update("live_cursor_id", job.CutoffId).Error; err != nil {
+				Updates(map[string]interface{}{
+					"live_cursor_id":         0,
+					"live_cursor_created_at": job.CutoffCreatedAt,
+					"live_cursor_request_id": job.CutoffRequestId,
+				}).Error; err != nil {
 				return err
 			}
 		}
@@ -1113,7 +1081,7 @@ func replaceBillingReportDayFromStaging(tx *gorm.DB, jobId uint64, billDate stri
 
 func failBillingReportJob(jobId uint64, err error) {
 	setBillingReportError(err)
-	_ = model.LOG_DB.Model(&model.BillingReportJob{}).Where("id = ?", jobId).
+	_ = model.DB.Model(&model.BillingReportJob{}).Where("id = ?", jobId).
 		Updates(map[string]interface{}{
 			"status":        model.BillingReportJobFailed,
 			"error_message": err.Error(),
@@ -1126,10 +1094,10 @@ func SetBillingReportAutoEnabled(enabled bool) error {
 	if !BillingReportEnabled() {
 		return errors.New("billing report module is disabled")
 	}
-	if err := model.EnsureBillingReportState(model.LOG_DB); err != nil {
+	if err := model.EnsureBillingReportState(model.DB); err != nil {
 		return err
 	}
-	return model.LOG_DB.Model(&model.BillingReportState{}).
+	return model.DB.Model(&model.BillingReportState{}).
 		Where("id = ?", model.BillingReportStateID).
 		Updates(map[string]interface{}{
 			"auto_enabled": enabled,
@@ -1147,14 +1115,14 @@ func GetBillingReportStatus() (BillingReportStatus, error) {
 	if !status.Enabled {
 		return status, nil
 	}
-	if err := model.EnsureBillingReportState(model.LOG_DB); err != nil {
+	if err := model.EnsureBillingReportState(model.DB); err != nil {
 		return status, err
 	}
-	if err := model.LOG_DB.First(&status.State, model.BillingReportStateID).Error; err != nil {
+	if err := model.DB.First(&status.State, model.BillingReportStateID).Error; err != nil {
 		return status, err
 	}
 	var active model.BillingReportJob
-	result := model.LOG_DB.Where("status IN ?", []string{model.BillingReportJobRunning, model.BillingReportJobPending}).
+	result := model.DB.Where("status IN ?", []string{model.BillingReportJobRunning, model.BillingReportJobPending}).
 		Order("id ASC").
 		Limit(1).
 		Find(&active)
@@ -1164,7 +1132,7 @@ func GetBillingReportStatus() (BillingReportStatus, error) {
 	if result.RowsAffected > 0 {
 		status.ActiveJob = &active
 	}
-	if err := model.LOG_DB.Model(&model.BillingReportJob{}).
+	if err := model.DB.Model(&model.BillingReportJob{}).
 		Where("status = ?", model.BillingReportJobPending).
 		Count(&status.PendingJobs).Error; err != nil {
 		return status, err

@@ -77,22 +77,24 @@ func (BillingReportDaily) TableName() string {
 // BillingReportState is a singleton and also provides a portable database
 // lease for multi-instance deployments.
 type BillingReportState struct {
-	Id              int    `json:"-" gorm:"primaryKey"`
-	AutoEnabled     bool   `json:"auto_enabled"`
-	Initialized     bool   `json:"initialized"`
-	LiveCursorId    int    `json:"live_cursor_id"`
-	HistoryDate     string `json:"history_date" gorm:"size:10"`
-	HistoryCursorId int    `json:"history_cursor_id"`
-	HistoryCutoffId int    `json:"history_cutoff_id"`
-	LastAutoRunAt   int64  `json:"last_auto_run_at"`
-	LastSyncedAt    int64  `json:"last_synced_at"`
-	LastSourceLogAt int64  `json:"last_source_log_at"`
-	ProcessedLogs   int64  `json:"processed_logs"`
-	Status          string `json:"status" gorm:"size:32"`
-	LastError       string `json:"last_error" gorm:"type:text"`
-	LockOwner       string `json:"-" gorm:"size:191"`
-	LockUntil       int64  `json:"-"`
-	UpdatedAt       int64  `json:"updated_at"`
+	Id                  int    `json:"-" gorm:"primaryKey"`
+	AutoEnabled         bool   `json:"auto_enabled"`
+	Initialized         bool   `json:"initialized"`
+	LiveCursorId        int    `json:"live_cursor_id"`
+	LiveCursorCreatedAt int64  `json:"live_cursor_created_at"`
+	LiveCursorRequestId string `json:"live_cursor_request_id" gorm:"size:191"`
+	HistoryDate         string `json:"history_date" gorm:"size:10"`
+	HistoryCursorId     int    `json:"history_cursor_id"`
+	HistoryCutoffId     int    `json:"history_cutoff_id"`
+	LastAutoRunAt       int64  `json:"last_auto_run_at"`
+	LastSyncedAt        int64  `json:"last_synced_at"`
+	LastSourceLogAt     int64  `json:"last_source_log_at"`
+	ProcessedLogs       int64  `json:"processed_logs"`
+	Status              string `json:"status" gorm:"size:32"`
+	LastError           string `json:"last_error" gorm:"type:text"`
+	LockOwner           string `json:"-" gorm:"size:191"`
+	LockUntil           int64  `json:"-"`
+	UpdatedAt           int64  `json:"updated_at"`
 }
 
 func (BillingReportState) TableName() string {
@@ -100,21 +102,25 @@ func (BillingReportState) TableName() string {
 }
 
 type BillingReportJob struct {
-	Id            uint64 `json:"id" gorm:"primaryKey"`
-	StartDate     string `json:"start_date" gorm:"size:10"`
-	EndDate       string `json:"end_date" gorm:"size:10"`
-	CurrentDate   string `json:"current_date" gorm:"size:10"`
-	CursorId      int    `json:"cursor_id"`
-	CutoffId      int    `json:"cutoff_id"`
-	Status        string `json:"status" gorm:"size:32;index"`
-	ProcessedLogs int64  `json:"processed_logs"`
-	ProcessedDays int    `json:"processed_days"`
-	TotalDays     int    `json:"total_days"`
-	ErrorMessage  string `json:"error_message" gorm:"type:text"`
-	CreatedAt     int64  `json:"created_at"`
-	StartedAt     int64  `json:"started_at"`
-	FinishedAt    int64  `json:"finished_at"`
-	UpdatedAt     int64  `json:"updated_at"`
+	Id              uint64 `json:"id" gorm:"primaryKey"`
+	StartDate       string `json:"start_date" gorm:"size:10"`
+	EndDate         string `json:"end_date" gorm:"size:10"`
+	CurrentDate     string `json:"current_date" gorm:"size:10"`
+	CursorId        int    `json:"cursor_id"`
+	CutoffId        int    `json:"cutoff_id"`
+	CursorCreatedAt int64  `json:"cursor_created_at"`
+	CursorRequestId string `json:"cursor_request_id" gorm:"size:191"`
+	CutoffCreatedAt int64  `json:"cutoff_created_at"`
+	CutoffRequestId string `json:"cutoff_request_id" gorm:"size:191"`
+	Status          string `json:"status" gorm:"size:32;index"`
+	ProcessedLogs   int64  `json:"processed_logs"`
+	ProcessedDays   int    `json:"processed_days"`
+	TotalDays       int    `json:"total_days"`
+	ErrorMessage    string `json:"error_message" gorm:"type:text"`
+	CreatedAt       int64  `json:"created_at"`
+	StartedAt       int64  `json:"started_at"`
+	FinishedAt      int64  `json:"finished_at"`
+	UpdatedAt       int64  `json:"updated_at"`
 }
 
 func (BillingReportJob) TableName() string {
@@ -184,7 +190,7 @@ func applyBillingReportFilters(tx *gorm.DB, filters BillingReportFilters) *gorm.
 }
 
 func QueryBillingReport(filters BillingReportFilters, offset int, limit int) ([]BillingReportDaily, int64, BillingReportTotals, error) {
-	tx := applyBillingReportFilters(LOG_DB.Model(&BillingReportDaily{}).Where("job_id = ?", uint64(0)), filters)
+	tx := applyBillingReportFilters(DB.Model(&BillingReportDaily{}).Where("job_id = ?", uint64(0)), filters)
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, 0, BillingReportTotals{}, err
@@ -194,7 +200,7 @@ func QueryBillingReport(filters BillingReportFilters, offset int, limit int) ([]
 		return nil, 0, BillingReportTotals{}, err
 	}
 	var totals BillingReportTotals
-	err := applyBillingReportFilters(LOG_DB.Model(&BillingReportDaily{}).Where("job_id = ?", uint64(0)), filters).
+	err := applyBillingReportFilters(DB.Model(&BillingReportDaily{}).Where("job_id = ?", uint64(0)), filters).
 		Select("COALESCE(SUM(call_count), 0) AS call_count, COALESCE(SUM(input_tokens), 0) AS input_tokens, COALESCE(SUM(output_tokens), 0) AS output_tokens, COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens, COALESCE(SUM(cache_write_tokens), 0) AS cache_write_tokens, COALESCE(SUM(original_total), 0) AS original_total, COALESCE(SUM(adjusted_total), 0) AS adjusted_total").
 		Scan(&totals).Error
 	return rows, total, totals, err
@@ -202,13 +208,13 @@ func QueryBillingReport(filters BillingReportFilters, offset int, limit int) ([]
 
 func CountBillingReportForExport(filters BillingReportFilters) (int64, error) {
 	var total int64
-	err := applyBillingReportFilters(LOG_DB.Model(&BillingReportDaily{}).Where("job_id = ?", uint64(0)), filters).
+	err := applyBillingReportFilters(DB.Model(&BillingReportDaily{}).Where("job_id = ?", uint64(0)), filters).
 		Count(&total).Error
 	return total, err
 }
 
 func IterateBillingReportForExport(filters BillingReportFilters, visit func(BillingReportDaily) error) error {
-	rows, err := applyBillingReportFilters(LOG_DB.Model(&BillingReportDaily{}).Where("job_id = ?", uint64(0)), filters).
+	rows, err := applyBillingReportFilters(DB.Model(&BillingReportDaily{}).Where("job_id = ?", uint64(0)), filters).
 		Order("bill_date ASC, username ASC, model_name ASC, id ASC").
 		Rows()
 	if err != nil {
@@ -217,7 +223,7 @@ func IterateBillingReportForExport(filters BillingReportFilters, visit func(Bill
 	defer rows.Close()
 	for rows.Next() {
 		var row BillingReportDaily
-		if err := LOG_DB.ScanRows(rows, &row); err != nil {
+		if err := DB.ScanRows(rows, &row); err != nil {
 			return err
 		}
 		if err := visit(row); err != nil {

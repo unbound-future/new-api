@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -749,6 +753,12 @@ func DeleteOldLogBatch(ctx context.Context, targetTimestamp int64, limit int) (i
 		if total == 0 {
 			return 0, nil
 		}
+		if strings.EqualFold(strings.TrimSpace(os.Getenv("LOG_SQL_MANAGED_SCHEMA")), "true") {
+			if err := deleteOldManagedClickHouseLogs(ctx, targetTimestamp); err != nil {
+				return 0, err
+			}
+			return total, nil
+		}
 		if err := LOG_DB.WithContext(ctx).Exec(
 			"ALTER TABLE logs DELETE WHERE created_at < ? SETTINGS mutations_sync = 1",
 			targetTimestamp,
@@ -763,4 +773,64 @@ func DeleteOldLogBatch(ctx context.Context, targetTimestamp int64, limit int) (i
 		return 0, result.Error
 	}
 	return result.RowsAffected, nil
+}
+
+var clickHouseIdentifierPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
+
+func managedClickHouseIdentifier(envName string, fallback string) (string, error) {
+	value := strings.TrimSpace(os.Getenv(envName))
+	if value == "" {
+		value = fallback
+	}
+	if value == "" || !clickHouseIdentifierPattern.MatchString(value) {
+		return "", fmt.Errorf("invalid %s value", envName)
+	}
+	return "`" + value + "`", nil
+}
+
+func deleteOldManagedClickHouseLogs(ctx context.Context, targetTimestamp int64) error {
+	cluster, err := managedClickHouseIdentifier("LOG_SQL_CLICKHOUSE_CLUSTER", "")
+	if err != nil {
+		return err
+	}
+	localTable, err := managedClickHouseIdentifier("LOG_SQL_CLICKHOUSE_LOCAL_TABLE", "logs_local")
+	if err != nil {
+		return err
+	}
+
+	location, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		return err
+	}
+	target := time.Unix(targetTimestamp, 0).In(location)
+	targetMonthStart := time.Date(target.Year(), target.Month(), 1, 0, 0, 0, 0, location)
+	targetPartition := target.Year()*100 + int(target.Month())
+
+	var partitions []int
+	if err := LOG_DB.WithContext(ctx).Raw(
+		"SELECT DISTINCT toInt32(toYYYYMM(toDateTime(created_at, 'Asia/Shanghai'))) AS partition_id FROM logs WHERE toYYYYMM(toDateTime(created_at, 'Asia/Shanghai')) < ?",
+		targetPartition,
+	).Scan(&partitions).Error; err != nil {
+		return fmt.Errorf("list ClickHouse log partitions: %w", err)
+	}
+	sort.Ints(partitions)
+	for _, partition := range partitions {
+		if err := LOG_DB.WithContext(ctx).Exec(
+			"ALTER TABLE " + localTable + " ON CLUSTER " + cluster + " DROP PARTITION " + strconv.Itoa(partition),
+		).Error; err != nil {
+			return fmt.Errorf("drop ClickHouse log partition %d: %w", partition, err)
+		}
+	}
+
+	if targetTimestamp <= targetMonthStart.Unix() {
+		return nil
+	}
+	mutation := "ALTER TABLE " + localTable + " ON CLUSTER " + cluster +
+		" DELETE WHERE created_at < " + strconv.FormatInt(targetTimestamp, 10) +
+		" AND toYYYYMM(toDateTime(created_at, 'Asia/Shanghai')) = " + strconv.Itoa(targetPartition) +
+		" SETTINGS mutations_sync = 1"
+	if err := LOG_DB.WithContext(ctx).Exec(mutation).Error; err != nil {
+		return fmt.Errorf("delete partial ClickHouse log partition: %w", err)
+	}
+	return nil
 }

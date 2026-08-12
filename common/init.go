@@ -177,6 +177,11 @@ func positiveUserSessionEnv(name string, fallback int) int {
 func initLoggingFlags() {
 	CosLogEnabled = GetEnvOrDefaultBool("COSLOG_ENABLED", false)
 	RequestLogEnabled = GetEnvOrDefaultBool("REQUEST_LOG_ENABLED", true)
+	if value := strings.TrimSpace(os.Getenv("COSLOG_SAMPLE_PERCENT")); value != "" {
+		if err := SetCosLogSamplePercent(value); err != nil {
+			log.Fatalf("invalid COSLOG_SAMPLE_PERCENT: %v", err)
+		}
+	}
 }
 
 func initConstantEnv() {

@@ -152,3 +152,20 @@ func TestAssignDisplayLogIds(t *testing.T) {
 
 	assert.NotPanics(t, func() { assignDisplayLogIds(nil, 0) })
 }
+
+func TestManagedClickHouseIdentifier(t *testing.T) {
+	t.Setenv("LOG_SQL_CLICKHOUSE_CLUSTER", "newapi-prod.cluster-1")
+
+	identifier, err := managedClickHouseIdentifier("LOG_SQL_CLICKHOUSE_CLUSTER", "")
+	require.NoError(t, err)
+	assert.Equal(t, "`newapi-prod.cluster-1`", identifier)
+
+	t.Setenv("LOG_SQL_CLICKHOUSE_CLUSTER", "prod`; DROP TABLE logs")
+	_, err = managedClickHouseIdentifier("LOG_SQL_CLICKHOUSE_CLUSTER", "")
+	require.Error(t, err)
+
+	t.Setenv("LOG_SQL_CLICKHOUSE_LOCAL_TABLE", "")
+	identifier, err = managedClickHouseIdentifier("LOG_SQL_CLICKHOUSE_LOCAL_TABLE", "logs_local")
+	require.NoError(t, err)
+	assert.Equal(t, "`logs_local`", identifier)
+}

@@ -1,6 +1,6 @@
-CREATE DATABASE IF NOT EXISTS newapi_logs ON CLUSTER `${CLICKHOUSE_CLUSTER}`;
+CREATE DATABASE IF NOT EXISTS newapi_logs;
 
-CREATE TABLE IF NOT EXISTS newapi_logs.logs_local ON CLUSTER `${CLICKHOUSE_CLUSTER}`
+CREATE TABLE IF NOT EXISTS newapi_logs.logs
 (
     id Int64 DEFAULT 0,
     user_id Int32 DEFAULT 0,
@@ -41,12 +41,3 @@ ENGINE = MergeTree()
 PARTITION BY toYYYYMM(toDateTime(created_at, 'Asia/Shanghai'))
 ORDER BY (created_at, request_id)
 SETTINGS index_granularity = 8192;
-
-CREATE TABLE IF NOT EXISTS newapi_logs.logs ON CLUSTER `${CLICKHOUSE_CLUSTER}`
-AS newapi_logs.logs_local
-ENGINE = Distributed(
-    `${CLICKHOUSE_CLUSTER}`,
-    newapi_logs,
-    logs_local,
-    cityHash64(request_id)
-);

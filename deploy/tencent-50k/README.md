@@ -18,7 +18,7 @@
 | TCR 命名空间/仓库 | `newapi-prod/new-api` | 保存固定 digest 的生产镜像 |
 | PostgreSQL | `newapi-prod-pg` | 用户、令牌、渠道、额度、系统配置和账单聚合 |
 | Redis | `newapi-prod-redis` | 多实例共享缓存、会话和分布式状态 |
-| TCHouse-C | `newapi-prod-clickhouse` | 普通 `logs` 分布式存储 |
+| ClickHouse CVM | `newapi-prod-clickhouse` | 单机 `MergeTree` 保存普通 `logs`，不使用 ZooKeeper、分片或副本 |
 | CLB | `newapi-prod-clb` | 当前 HTTP 验证入口；正式域名确定后增加 HTTPS |
 | 启动配置 | `newapi-prod-launch-v3` | 固定机型、镜像 digest、数据盘和启动脚本 |
 | 弹性伸缩组 | `newapi-prod-asg` | 管理 10～16 台同构 NewAPI 实例 |
@@ -34,7 +34,7 @@ API 域名（DNS 直连，不经过 Cloudflare 代理）
   -> newapi-prod-asg（初始/最少 10，最多 16）
      -> PostgreSQL（业务与账单聚合）
      -> Redis（共享状态）
-     -> ClickHouse（普通 logs）
+     -> 单机 ClickHouse（普通 logs）
      -> COS（完整 COSLOG）
 ```
 
@@ -42,8 +42,8 @@ API 域名（DNS 直连，不经过 Cloudflare 代理）
 
 1. 创建 VPC、两个子网和两个安全组。
 2. 创建 TCR 仓库，构建镜像并按 digest 固定。
-3. 创建 PostgreSQL 16、Redis 7 和 4 分片单副本 TCHouse-C。
-4. 用 `clickhouse/schema.sql.tpl` 创建 `logs_local` 和分布式 `logs`。
+3. 创建 PostgreSQL 16、Redis 7 和一台独立 ClickHouse CVM。
+4. 用 `clickhouse/schema.sql.tpl` 创建单机 `MergeTree` 表 `newapi_logs.logs`。
 5. 先启动一台应用实例，完成空数据库初始化并创建新环境 Root。
 6. 创建 CLB、启动配置和 ASG，先扩到 2 台验证，再扩到 10 台。
 7. 配置 CPU 60%、内存 70% 或 TCP 已建立连接数 1800 持续 3 分钟时每次增加 2 台。暂不自动缩容，避免中断流式连接。
@@ -61,16 +61,15 @@ API 域名（DNS 直连，不经过 Cloudflare 代理）
 
 ## ClickHouse
 
-设置 TCHouse 控制台显示的集群名后渲染 SQL：
+生成单机建表 SQL：
 
 ```bash
-export CLICKHOUSE_CLUSTER='实际集群名'
 ./scripts/render-clickhouse-schema.sh
 ```
 
-使用 TCHouse 提供的账号执行生成的 `schema.rendered.sql`。应用连接分布式表 `newapi_logs.logs`，启动时设置 `LOG_SQL_MANAGED_SCHEMA=true`，只校验表结构，不执行自动建表。
+使用 ClickHouse 管理账号执行生成的 `schema.rendered.sql`。应用直接连接物理表 `newapi_logs.logs`，部署配置固定使用 `LOG_SQL_MANAGED_SCHEMA=false`；程序启动时会兼容检查并补建缺失的单机表。
 
-普通日志永久保留。Root 清理历史日志时，完整旧月份会删除 `logs_local` 分区，只有截止日期所在月份执行一次行级删除。
+`LOG_SQL_CLICKHOUSE_TTL_DAYS=0`，普通日志永久保留，不配置 TTL，也不会自动清理。只有 Root 主动执行历史日志清理时才会删除数据。
 
 ## 首次启动与扩容
 
@@ -86,7 +85,7 @@ sudo ./scripts/verify-app.sh
 ## 回退
 
 - 应用：启动配置改回上一个镜像 digest，再执行 ASG 滚动更新。
-- ClickHouse：代码在 `LOG_SQL_MANAGED_SCHEMA=false` 时仍保留原单表逻辑；生产分布式表不应自动切回。
+- ClickHouse：继续使用单机 `newapi_logs.logs`；如需回退应用镜像，不要启用 `LOG_SQL_MANAGED_SCHEMA=true`，也不要配置集群名或 `logs_local`。
 - COSLOG：上传失败会保留本地 `.jsonl` 并每 60 秒重试；磁盘达到 85% 后仅丢弃新样本，不阻塞 API。
 - 数据库：PostgreSQL 开启每日备份与 PITR，保留 7 天。
 

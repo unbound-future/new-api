@@ -1,6 +1,16 @@
 # 实施记录
 
-更新时间：2026-08-12（Asia/Shanghai）
+更新时间：2026-08-14（Asia/Shanghai）
+
+## 单机 ClickHouse 调整
+
+- 腾讯部署模板已从托管分布式 ClickHouse 改为单机模式。
+- 应用配置使用 `LOG_SQL_MANAGED_SCHEMA=false`，删除 `LOG_SQL_CLICKHOUSE_CLUSTER` 和 `LOG_SQL_CLICKHOUSE_LOCAL_TABLE`。
+- 建表脚本只创建 `newapi_logs.logs`，表引擎为 `MergeTree`；不再创建 `logs_local`、`Distributed` 表或执行 `ON CLUSTER` DDL。
+- 验证脚本直接读取本机 `system.parts`，不再调用 `clusterAllReplicas`。
+- `LOG_SQL_CLICKHOUSE_TTL_DAYS=0`，日志永久保留，不设置自动清理。
+- 通用代码中的分布式兼容能力仍保留但不启用，避免影响其他部署方式和未来扩展。
+- 本次只修改代码与部署模板，没有创建、启动或恢复任何腾讯云资源。
 
 ## 关闭记录
 

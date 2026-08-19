@@ -1,6 +1,23 @@
 # 实施记录
 
-更新时间：2026-08-14（Asia/Shanghai）
+更新时间：2026-08-19（Asia/Shanghai）
+
+## 上海手动扩容环境（当前）
+
+- Git 分支：`newapi-tencent`，没有创建新分支，也没有创建 ASG、启动配置或自动伸缩策略。
+- 固定数据节点：`new-1` / `ins-eu2z6brd`，公网 `101.43.75.17`，私网 `10.0.0.14`。
+- 手动应用节点：`newapi-app-01` / `ins-pjhslktp`，竞价 `SA5.2XLARGE32`、8C32G、200 GB `CLOUD_HSSD`、200 Mbps 按流量公网；公网 `43.142.81.197`，私网 `10.0.0.17`。
+- VPC / 子网：`vpc-l5386ebs` / `subnet-geb2r0m7`；应用安全组 `sg-di0wkip4`。
+- TCR 私有仓库：`ccr.ccs.tencentyun.com/unbound-newapi/new-api`；运行镜像固定为 `sha256:4a41f626924aa22be42f39a77942a4409d4d03664b0bd748c1aefc3d3b418f01`。
+- 公网 CLB：`newapi-shanghai-clb` / `lb-69ybdzgv`，VIP `43.179.237.47`；HTTP 80 监听器 `lbl-c2ejjf0l`，规则 `loc-dhhrhkwz`，900 秒配置 `pz-8gn6tz7l`。
+- CLB 使用 `LEAST_CONN`、无会话保持、`GET /api/status` 健康检查，两台后端当前均为 `Alive`。
+- 腾讯云自动 CLB 域名只用于 CNAME，直接访问会跳转官方说明页；当前验证入口为 `http://43.179.237.47`，固定机应急入口为 `http://101.43.75.17`。
+- `new-1` 的空白 500 GB `/dev/vdb` 已格式化为 XFS 并持久挂载 `/data`；PostgreSQL 16、Redis 7、单机 ClickHouse 25.8、NewAPI 和 Nginx 均健康。
+- COSLOG 已固定为 100% 采样并上传到 `newlog-1346826778/data/`；切换前完成写入、HEAD 和删除测试。
+- Root 和运行密钥只保存在 `new-1` 的 `/root/newapi-admin.env`、`/etc/newapi/newapi.env` 与 `/root/newapi-tcr-login.env`，权限均为 `0600`；应用节点仅保存运行必需配置。
+- 已验证：两台应用共享 PostgreSQL/Redis、CLB 连续请求、20 次 Root 鉴权、应用节点故障摘除及恢复；应用节点公网 80 和固定节点数据库公网端口均未开放。
+
+以下记录是 2026-08-12 已关闭的弗吉尼亚历史方案，仅用于审计，不代表当前上海资源。
 
 ## 单机 ClickHouse 调整
 

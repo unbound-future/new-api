@@ -6,8 +6,8 @@ services:
     command: --log-dir /var/log/new-api
     env_file:
       - /etc/newapi/newapi.env
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     volumes:
       - /data/newapi/coslog:/var/lib/new-api/coslog
       - /data/newapi/logs:/var/log/new-api
@@ -18,12 +18,33 @@ services:
         - wget -q -O - http://127.0.0.1:3000/api/status | grep -Eq '"success"[[:space:]]*:[[:space:]]*true'
       interval: 15s
       timeout: 5s
-      retries: 12
+      retries: 20
       start_period: 300s
     ulimits:
       nofile:
         soft: 1048576
         hard: 1048576
+    logging:
+      driver: json-file
+      options:
+        max-size: 100m
+        max-file: "5"
+  nginx:
+    image: nginx:1.28.2-alpine
+    container_name: newapi-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      new-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/api/status | grep -Eq '\"success\"[[:space:]]*:[[:space:]]*true'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
     logging:
       driver: json-file
       options:

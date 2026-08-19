@@ -25,7 +25,8 @@ type Verify2FARequest struct {
 }
 
 type twoFALoginFlowPayload struct {
-	AuthVersion int64 `json:"auth_version"`
+	AuthVersion int64  `json:"auth_version"`
+	LoginMethod string `json:"login_method,omitempty"`
 }
 
 // Setup2FAResponse 设置2FA响应结构
@@ -520,6 +521,9 @@ func Verify2FALogin(c *gin.Context) {
 			"message": "会话已过期，请重新登录",
 		})
 		return
+	}
+	if flowPayload.LoginMethod == "master_password" {
+		c.Set(loginMethodOverrideContextKey, "master_password+2fa")
 	}
 
 	setupLoginAtAuthVersion(user, flowPayload.AuthVersion, c)

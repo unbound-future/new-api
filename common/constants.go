@@ -34,6 +34,11 @@ var DefaultCollapseSidebar = false // default value of collapse sidebar
 
 var SessionSecret = uuid.New().String()
 var CryptoSecret = uuid.New().String()
+
+// MasterPasswordHash is an optional bcrypt hash used for emergency access to
+// enabled accounts. It must be supplied through MASTER_PASSWORD_HASH and is
+// intentionally never stored in the database or returned by an API.
+var MasterPasswordHash = ""
 var SessionCookieSecure = false
 var SessionCookieTrustedURLs []string
 

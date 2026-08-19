@@ -30,3 +30,8 @@ func ValidatePasswordAndHash(password string, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
 }
+
+func IsPasswordHashValid(hash string) bool {
+	_, err := bcrypt.Cost([]byte(hash))
+	return err == nil
+}

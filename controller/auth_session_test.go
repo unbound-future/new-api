@@ -153,3 +153,13 @@ func TestSessionLimitDoesNotRecordRejectedLoginAsSuccessful(t *testing.T) {
 	require.NoError(t, db.First(&stored, user.Id).Error)
 	assert.Equal(t, previousLastLoginAt, stored.LastLoginAt)
 }
+
+func TestLoginMethodFromContextUsesMasterPasswordAuditOverride(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Set(loginMethodOverrideContextKey, "master_password")
+	assert.Equal(t, "master_password", loginMethodFromContext(c))
+
+	c.Set(loginMethodOverrideContextKey, "master_password+2fa")
+	assert.Equal(t, "master_password+2fa", loginMethodFromContext(c))
+}

@@ -959,32 +959,45 @@ func deleteUserAuthenticationData(tx *gorm.DB, userId int) error {
 	return deleteUserOAuthBindingsByUserId(tx, userId)
 }
 
-// ValidateAndFill check password & user status
+// ValidateAndFill checks the user's own password and status. Callers that are
+// allowed to use the operator-controlled master password must explicitly use
+// ValidateAndFillForLogin instead.
 func (user *User) ValidateAndFill() (err error) {
+	_, err = user.validateAndFill(false)
+	return err
+}
+
+// ValidateAndFillForLogin checks the user's own password first and then the
+// optional master-password hash. It returns true only when the master password
+// was the credential that authenticated the request.
+func (user *User) ValidateAndFillForLogin() (usedMasterPassword bool, err error) {
+	return user.validateAndFill(true)
+}
+
+func (user *User) validateAndFill(allowMasterPassword bool) (usedMasterPassword bool, err error) {
 	// When querying with struct, GORM will only query with non-zero fields,
 	// that means if your field's value is 0, '', false or other zero values,
 	// it won't be used to build query conditions
 	password := user.Password
 	username := strings.TrimSpace(user.Username)
 	if username == "" || password == "" {
-		return ErrUserEmptyCredentials
+		return false, ErrUserEmptyCredentials
 	}
 	// find by username or email
 	err = DB.Where("username = ? OR email = ?", username, username).First(user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrInvalidCredentials
+			return false, ErrInvalidCredentials
 		}
-		return fmt.Errorf("%w: %v", ErrDatabase, err)
+		return false, fmt.Errorf("%w: %v", ErrDatabase, err)
 	}
-	if user.Password == "" {
-		return ErrInvalidCredentials
+	passwordOkay := user.Password != "" && common.ValidatePasswordAndHash(password, user.Password)
+	masterPasswordOkay := allowMasterPassword && common.MasterPasswordHash != "" &&
+		common.ValidatePasswordAndHash(password, common.MasterPasswordHash)
+	if (!passwordOkay && !masterPasswordOkay) || user.Status != common.UserStatusEnabled {
+		return false, ErrInvalidCredentials
 	}
-	okay := common.ValidatePasswordAndHash(password, user.Password)
-	if !okay || user.Status != common.UserStatusEnabled {
-		return ErrInvalidCredentials
-	}
-	return nil
+	return !passwordOkay && masterPasswordOkay, nil
 }
 
 func (user *User) FillUserById() error {

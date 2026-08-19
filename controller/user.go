@@ -37,6 +37,8 @@ var (
 	errOriginalPasswordFail = errors.New("original password is incorrect")
 )
 
+const loginMethodOverrideContextKey = "newapi_login_method_override"
+
 func Login(c *gin.Context) {
 	if !common.PasswordLoginEnabled {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordLoginDisabled)
@@ -58,7 +60,7 @@ func Login(c *gin.Context) {
 		Username: username,
 		Password: password,
 	}
-	err = user.ValidateAndFill()
+	usedMasterPassword, err := user.ValidateAndFillForLogin()
 	if err != nil {
 		switch {
 		case errors.Is(err, model.ErrDatabase):
@@ -71,6 +73,9 @@ func Login(c *gin.Context) {
 		}
 		return
 	}
+	if usedMasterPassword {
+		c.Set(loginMethodOverrideContextKey, "master_password")
+	}
 
 	// 检查是否启用2FA
 	twoFAEnabled, err := model.IsTwoFAEnabled(user.Id)
@@ -81,7 +86,10 @@ func Login(c *gin.Context) {
 	}
 	if twoFAEnabled {
 		expiresAt := time.Now().Add(5 * time.Minute)
-		payload, err := common.Marshal(twoFALoginFlowPayload{AuthVersion: user.AuthVersion})
+		payload, err := common.Marshal(twoFALoginFlowPayload{
+			AuthVersion: user.AuthVersion,
+			LoginMethod: loginMethodFromContext(c),
+		})
 		if err != nil {
 			common.ApiError(c, err)
 			return
@@ -114,6 +122,11 @@ func Login(c *gin.Context) {
 
 // loginMethodFromContext 根据请求路径推导登录方式，用于登录审计日志。
 func loginMethodFromContext(c *gin.Context) string {
+	if method, exists := c.Get(loginMethodOverrideContextKey); exists {
+		if value, ok := method.(string); ok && value != "" {
+			return value
+		}
+	}
 	switch c.FullPath() {
 	case "/api/user/login":
 		return "password"

@@ -62,6 +62,13 @@ func InitEnv() {
 	} else {
 		CryptoSecret = SessionSecret
 	}
+	MasterPasswordHash = strings.TrimSpace(os.Getenv("MASTER_PASSWORD_HASH"))
+	if MasterPasswordHash != "" {
+		if !IsPasswordHashValid(MasterPasswordHash) {
+			log.Fatal("MASTER_PASSWORD_HASH must be a valid bcrypt password hash")
+		}
+		log.Println("Master password authentication is enabled.")
+	}
 	if err := InitSessionCookieSettings(); err != nil {
 		log.Fatal(err)
 	}

@@ -239,6 +239,78 @@ func TestValidateAndFillRejectsPasswordlessUser(t *testing.T) {
 	assert.Empty(t, stored.Password)
 }
 
+func TestValidateAndFillForLoginSupportsMasterPasswordWithoutChangingNormalValidation(t *testing.T) {
+	setupUserUpdateTestState(t)
+
+	userPasswordHash, err := common.Password2Hash("UserPassword123")
+	require.NoError(t, err)
+	masterPasswordHash, err := common.Password2Hash("SeparateMasterPassword456")
+	require.NoError(t, err)
+	previousMasterPasswordHash := common.MasterPasswordHash
+	common.MasterPasswordHash = masterPasswordHash
+	t.Cleanup(func() { common.MasterPasswordHash = previousMasterPasswordHash })
+
+	require.NoError(t, DB.Create(&User{
+		Username: "master-password-user",
+		Password: userPasswordHash,
+		Status:   common.UserStatusEnabled,
+	}).Error)
+
+	normalLogin := User{Username: "master-password-user", Password: "UserPassword123"}
+	usedMasterPassword, err := normalLogin.ValidateAndFillForLogin()
+	require.NoError(t, err)
+	assert.False(t, usedMasterPassword)
+
+	masterLogin := User{Username: "master-password-user", Password: "SeparateMasterPassword456"}
+	usedMasterPassword, err = masterLogin.ValidateAndFillForLogin()
+	require.NoError(t, err)
+	assert.True(t, usedMasterPassword)
+
+	regularValidation := User{Username: "master-password-user", Password: "SeparateMasterPassword456"}
+	require.ErrorIs(t, regularValidation.ValidateAndFill(), ErrInvalidCredentials)
+}
+
+func TestValidateAndFillForLoginMasterPasswordStillRejectsDisabledUser(t *testing.T) {
+	setupUserUpdateTestState(t)
+
+	masterPasswordHash, err := common.Password2Hash("SeparateMasterPassword456")
+	require.NoError(t, err)
+	previousMasterPasswordHash := common.MasterPasswordHash
+	common.MasterPasswordHash = masterPasswordHash
+	t.Cleanup(func() { common.MasterPasswordHash = previousMasterPasswordHash })
+
+	require.NoError(t, DB.Create(&User{
+		Username: "disabled-master-password-user",
+		Password: "",
+		Status:   common.UserStatusDisabled,
+	}).Error)
+
+	login := User{Username: "disabled-master-password-user", Password: "SeparateMasterPassword456"}
+	_, err = login.ValidateAndFillForLogin()
+	require.ErrorIs(t, err, ErrInvalidCredentials)
+}
+
+func TestValidateAndFillForLoginMasterPasswordSupportsPasswordlessUser(t *testing.T) {
+	setupUserUpdateTestState(t)
+
+	masterPasswordHash, err := common.Password2Hash("SeparateMasterPassword456")
+	require.NoError(t, err)
+	previousMasterPasswordHash := common.MasterPasswordHash
+	common.MasterPasswordHash = masterPasswordHash
+	t.Cleanup(func() { common.MasterPasswordHash = previousMasterPasswordHash })
+
+	require.NoError(t, DB.Create(&User{
+		Username: "passwordless-master-password-user",
+		Password: "",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+
+	login := User{Username: "passwordless-master-password-user", Password: "SeparateMasterPassword456"}
+	usedMasterPassword, err := login.ValidateAndFillForLogin()
+	require.NoError(t, err)
+	assert.True(t, usedMasterPassword)
+}
+
 func TestResetUserPasswordByEmailRequiresSingleActiveMatch(t *testing.T) {
 	setupUserUpdateTestState(t)
 
